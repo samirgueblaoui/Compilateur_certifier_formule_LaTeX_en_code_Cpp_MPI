@@ -1,0 +1,87 @@
+# macOS et fichiers d'editeurs
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# CMake et artefacts C/C++
+/build/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+install_manifest.txt
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.dSYM/
+/exprlatex/parser
+
+# Code C++ genere depuis la formule LaTeX
+/compilateur/src/compile.cpp
+
+# Metadonnees generees par ANTLR
+/exprlatex/*.interp
+/exprlatex/*.tokens
+/antlr-*-complete.jar
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# LaTeX et PythonTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.dvi
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.pytxcode
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+_minted-*/
+pythontex-files-*/
+/FormExec/article.pdf
+/FormExec/formSkel/
+
+# Fichiers compiles et caches Coq
+*.glob
+*.vo
+*.vok
+*.vos
+*.vio
+.*.aux
+.lia.cache
+.coq-native/
+
+# Configuration locale et secrets
+.env
+.env.*
+!.env.example

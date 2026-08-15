@@ -1,0 +1,14 @@
+Samy,
+
+pour compiler il faut écrire
+    pdflatex -shell-escape article.tex
+
+Il faut python3 d'installer, le package pour LaTeX pythontex  (souvent installé de base dans la distribution LaTeX ou dans les packages supplémentaire)
+Par exemple, pour moi, il faut installer sous Linux Debian/MINT/Ubuntu/etc. le package texlive-extra-utils
+
+  sudo apt install texlive-extra-utils
+
+Ensuite, dans le dossier formSkel, tu trouveras pleins de fichier qui seront à utiliser par ton compilo. Et aussi d'autres fichier à générer par les programmes de ton compilo. Je t'expliquerais tout cela lundi. Ne t'inquiète pas, vraiment rien de compliqué,
+
+
+NB : on renommera tout les "formSkel" en "formExex", ce sera plus conforme au projet. A l'époque c'était "skel" car on visait un bibliothèque de skelettes algorithmiques. 

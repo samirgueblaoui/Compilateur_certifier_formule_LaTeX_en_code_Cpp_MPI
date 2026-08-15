@@ -1,0 +1,130 @@
+{
+  "letters": [
+    "\\Alpha", "\\alpha", "\\Beta", "\\beta", "\\Gamma", "\\gamma",
+    "\\Delta", "\\delta", "\\Epsilon", "\\epsilon", "\\Theta", "\\theta",
+    "\\Lambda", "\\lambda", "\\Pi", "\\pi", "\\Sigma", "\\sigma",
+    "\\Phi", "\\phi", "\\Omega", "\\omega"
+  ],
+  "compilers": {
+    "ocaml": "ocamlopt unix.cmxa matrix.cmx skel.cmx",
+    "c++": "g++ -std=c++23",
+    "java": "javac -Xmaxerrs 1 -classpath jblas.jar:Skel.jar:."
+  },
+  "imports": {
+    "ocaml": [],
+    "c++": ["<cmath>"],
+    "java": ["java.lang.Math"]
+  },
+  "sumStrategy": {
+    "unaryDefaultCost": 10.0,
+    "binaryDefaultCost": 15.0,
+    "arithmeticBinaryCost": 1.0,
+    "accumulatorCost": 1.0,
+    "communicationCost": 8.0,
+    "synchronizationCost": 20.0,
+    "assumedProcesses": 4,
+    "minParallelIterations": 8,
+    "unknownIntervalFallback": 32,
+    "nestedGroups": 2,
+    "reductionVolume": 1.0
+  },
+  "functions": [
+    {
+      "latex": "\\sin",
+      "c++": "std::sin",
+      "type": {
+        "input": ["R"],
+        "output": "R",
+        "cost": {"c++": 12.0}
+      }
+    },
+    {
+      "latex": "\\cos",
+      "c++": "std::cos",
+      "type": {
+        "input": ["R"],
+        "output": "R",
+        "cost": {"c++": 13.0}
+      }
+    },
+    {
+      "latex": "\\ln",
+      "c++": "std::log",
+      "type": {
+        "input": ["R"],
+        "output": "R",
+        "cost": {"c++": 14.0}
+      }
+    },
+    {
+      "latex": "\\sqrt",
+      "c++": "std::sqrt",
+      "type": {
+        "input": ["R"],
+        "output": "R",
+        "cost": {"c++": 14.0}
+      }
+    },
+    {
+      "latex": "\\hypot",
+      "c++": "std::hypot",
+      "type": {
+        "input": ["R", "R"],
+        "output": "R",
+        "cost": {"c++": 16.0}
+      }
+    },
+    {
+      "latex": "^",
+      "c++": "std::pow",
+      "type": {
+        "input": ["R", "R"],
+        "output": "R",
+        "cost": {"c++": 15.0}
+      }
+    }
+  ],
+  "environments": [
+    {
+      "section": 1,
+      "processors": [1]
+    },
+    {
+      "section": 2,
+      "x": 42.0,
+      "y": 5.9,
+      "z": 5.9,
+      "processors": [1]
+    },
+    {
+      "section": 3,
+      "n": [3, 20],
+      "processors": [1, 2, 4]
+    },
+    {
+      "section": 4,
+      "v": {"values": [1, 2.5, 3, 4]},
+      "w": {"values": [2, 0, 3]},
+      "n": 3,
+      "processors": [1, 2, 4]
+    },
+    {
+      "section": 5,
+      "v": [
+        {"values": [1, 2, 3]},
+        {"values": [1, 2, 3, 4, 5]}
+      ],
+      "n": [2, 4],
+      "processors": [1, 2, 4]
+    },
+    {
+      "section": 6,
+      "u": {
+        "file": "data/external-vector.mtx",
+        "reading": "partial"
+      },
+      "n": 4,
+      "processors": [1, 2, 4]
+    }
+  ]
+}

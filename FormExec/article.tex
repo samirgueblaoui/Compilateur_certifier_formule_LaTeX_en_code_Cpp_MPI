@@ -1,0 +1,232 @@
+\documentclass[10pt,conference]{IEEEtran}
+
+\usepackage[language=C++]{formulaToSkel}
+
+\DeclareMathOperator{\hypot}{hypot}
+
+\newcommand{\soloValue}[1]{%
+  \formulaToSkelValue[label=#1,nthProcessor=1,maxDecimal=10]%
+  \space(temps $p=1$ :
+  \formulaToSkelTime[label=#1,nthProcessor=1,timer=microseconds,maxDecimal=3])%
+}
+\newcommand{\parallelValue}[1]{%
+  \formulaToSkelValue[label=#1,nthProcessor=1,maxDecimal=10]%
+  \space(temps : $p=1$ :
+  \formulaToSkelTime[label=#1,nthProcessor=1,timer=microseconds,maxDecimal=3] ;
+  $p=2$ :
+  \formulaToSkelTime[label=#1,nthProcessor=2,timer=microseconds,maxDecimal=3] ;
+  $p=4$ :
+  \formulaToSkelTime[label=#1,nthProcessor=3,timer=microseconds,maxDecimal=3])%
+}
+\newcommand{\multiResultValue}[2]{%
+  \formulaToSkelNthValue[label=#1,nthProcessor=1,maxSize=16,maxDecimal=10]{#2}%
+}
+\newcommand{\multiResultTime}[3]{%
+  \formulaToSkelNthTime[label=#1,nthProcessor=#3,timer=microseconds,maxDecimal=3]{#2}%
+}
+\newcommand{\multiCaseTable}[5]{%
+  \par\nopagebreak[4]\smallskip
+  \begin{center}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}%
+  \renewcommand{\arraystretch}{1.15}%
+  \begin{tabular}{c|cc}
+    $n$ & Attendu & Obtenu \\ \hline
+    #2 & #3 & \multiResultValue{#1}{1} \\
+    \multicolumn{3}{c}{Temps ($p=1/2/4$) :
+      \multiResultTime{#1}{1}{1}/\multiResultTime{#1}{1}{2}/\multiResultTime{#1}{1}{3} $\mu$s} \\[2pt]
+    #4 & #5 & \multiResultValue{#1}{2} \\
+    \multicolumn{3}{c}{Temps ($p=1/2/4$) :
+      \multiResultTime{#1}{2}{1}/\multiResultTime{#1}{2}{2}/\multiResultTime{#1}{2}{3} $\mu$s}
+  \end{tabular}
+  \end{center}%
+}
+
+\begin{document}
+
+\title{Exemples utilisation compilateur LaTeX vers C++/MPI}
+\maketitle
+
+Ce document fait parcourir au compilateur toutes les familles d'expressions
+actuellement prises en charge.
+
+
+\section{Arithmétique et fonctions sans variable}
+
+Cette première section vérifie les constantes, les priorités, les parenthèses,
+la multiplication implicite, la division flottante et les fonctions
+configurées.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=arithPriority]{$$3+2\times5$$}
+        Attendu : $13$. Obtenu : \soloValue{arithPriority}.
+
+  \item \formulaToSkel[label=arithParentheses]{$$(3+5)\times2-4$$}
+        Attendu : $12$. Obtenu : \soloValue{arithParentheses}.
+
+  \item \formulaToSkel[label=directProduct]{$$3*4$$}
+        Attendu : $12$. Obtenu : \soloValue{directProduct}.
+
+  \item \formulaToSkel[label=implicitProduct]{$$2(3+4)$$}
+        Attendu : $14$. Obtenu : \soloValue{implicitProduct}.
+
+  \item \formulaToSkel[label=floatConstants]{$$1.5+2.25$$}
+        Attendu : $3.75$. Obtenu : \soloValue{floatConstants}.
+
+  \item \formulaToSkel[label=floatDivision]{$$\frac{7}{2}$$}
+        Attendu : $3.5$. Obtenu : \soloValue{floatDivision}.
+
+  \item \formulaToSkel[label=directDivision]{$$7/2$$}
+        Attendu : $3.5$. Obtenu : \soloValue{directDivision}.
+
+  \item \formulaToSkel[label=power]{$$2^3$$}
+        Attendu : $8$. Obtenu : \soloValue{power}.
+
+  \item \formulaToSkel[label=trigonometry]{$$\sin(0)+\cos(0)$$}
+        Attendu : $1$. Obtenu : \soloValue{trigonometry}.
+
+  \item \formulaToSkel[label=sqrtAndLog]{$$\sqrt(9)+\ln(1)$$}
+        Attendu : $3$. Obtenu : \soloValue{sqrtAndLog}.
+
+  \item \formulaToSkel[label=binaryFunction]{$$\hypot(3,4)$$}
+        Attendu : $5$. Obtenu : \soloValue{binaryFunction}.
+
+  \item \formulaToSkel[label=binaryFunctionBraced]{$$\hypot{5}{12}$$}
+        Attendu : $13$. Obtenu : \soloValue{binaryFunctionBraced}.
+
+  \item \formulaToSkel[label=scalarNorm]{$$\lvert -3 \rvert$$}
+        Attendu : $3$. Obtenu : \soloValue{scalarNorm}.
+\end{enumerate}
+
+\section{Variables scalaires}
+\nextSectionFormSkel
+
+\formulaToSkelDef{$x,y,z\in\mathbb{R}$}
+La configuration utilise $x=42$, $y=5.9$ et $z=5.9$.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=scalarAdd]{$$x+3$$}
+        Attendu : $45$. Obtenu : \soloValue{scalarAdd}.
+
+  \item \formulaToSkel[label=twoVariables]{$$x+y$$}
+        Attendu : $47.9$. Obtenu : \soloValue{twoVariables}.
+
+  \item \formulaToSkel[label=mixedArithmetic]{$$x\times z+y$$}
+        Attendu : $253.7$. Obtenu : \soloValue{mixedArithmetic}.
+
+  \item \formulaToSkel[label=variableFraction]{$$\frac{x+y}{z}$$}
+        Attendu : environ $8.1186440678$. Obtenu :
+        \soloValue{variableFraction}.
+
+  \item \formulaToSkel[label=implicitVariables]{$$(x-y)(z+1)$$}
+        Attendu : $249.09$. Obtenu : \soloValue{implicitVariables}.
+
+  \item \formulaToSkel[label=binaryVariables]{$$\hypot(x,y)$$}
+        Attendu : environ $42.4123802680$. Obtenu :
+        \soloValue{binaryVariables}.
+\end{enumerate}
+
+\section{Sommes et choix séquentiel ou parallèle}
+\nextSectionFormSkel
+
+\formulaToSkelDef{$n\in\mathbb{N}$}
+Deux cas sont générés : $n=3$ et $n=20$. Chaque cas est exécuté avec
+$1$, $2$ et $4$ processus. Dans les tableaux, $t_p$ désigne le temps
+d'exécution en microsecondes avec $p$ processus.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=sumNatural]{$$\sum_{i=0}^{n}i$$}
+        \multiCaseTable{sumNatural}{3}{6}{20}{210}
+
+  \item \formulaToSkel[label=sumOdd]{$$\sum_{i=0}^{n}(2i+1)$$}
+        \multiCaseTable{sumOdd}{3}{16}{20}{441}
+
+  \item \formulaToSkel[label=sumShiftedBounds]{$$\sum_{i=0}^{n-1}(i+1)$$}
+        \multiCaseTable{sumShiftedBounds}{3}{6}{20}{210}
+
+  \item \formulaToSkel[label=sumTrig]{$$\sum_{i=0}^{n}\sin(i)$$}
+        \multiCaseTable{sumTrig}{3}{$\approx1.8918884197$}
+                                   {20}{$\approx0.9982218844$}
+
+  \item \formulaToSkel[label=sumDivision]{$$\sum_{i=0}^{n}\frac{i}{2}$$}
+        \multiCaseTable{sumDivision}{3}{3}{20}{105}
+
+  \item \formulaToSkel[label=nestedSums]{$$\sum_{i=0}^{n}\sum_{j=0}^{n}(i+j)$$}
+        \multiCaseTable{nestedSums}{3}{48}{20}{8820}
+\end{enumerate}
+
+\section{Vecteurs fixes}
+\nextSectionFormSkel
+
+\formulaToSkelDef{$v\in\mathbb{R}^{4},\ w\in\mathbb{N}^{3}$}
+La configuration utilise $v=(1,2.5,3,4)$, $w=(2,0,3)$ et $n=3$.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=vectorBrackets]{$$v[0]+v[n]$$}
+        Attendu : $5$. Obtenu : \parallelValue{vectorBrackets}.
+
+  \item \formulaToSkel[label=vectorConstantIndex]{$$v[1]$$}
+        Attendu : $2.5$. Obtenu : \parallelValue{vectorConstantIndex}.
+
+  \item \formulaToSkel[label=computedIndex]{$$v[n-1]$$}
+        Attendu : $3$. Obtenu : \parallelValue{computedIndex}.
+
+  \item \formulaToSkel[label=nestedVectorIndex]{$$v[w[0]]$$}
+        Attendu : $3$. Obtenu : \parallelValue{nestedVectorIndex}.
+
+  \item \formulaToSkel[label=sumVector]{$$\sum_{i=0}^{n}v_i$$}
+        Attendu : $10.5$. Obtenu : \parallelValue{sumVector}.
+
+  \item \formulaToSkel[label=shiftedVectorIndex]{$$\sum_{i=0}^{n-1}v[i+1]$$}
+        Attendu : $9.5$. Obtenu : \parallelValue{shiftedVectorIndex}.
+
+  \item \formulaToSkel[label=euclideanNorm]{$$\lVert v \rVert$$}
+        Attendu : environ $5.6789083458$. Obtenu :
+        \parallelValue{euclideanNorm}.
+
+  \item \formulaToSkel[label=frobeniusNorm]{$$\lVert v \rVert_F$$}
+        Attendu : environ $5.6789083458$. Obtenu :
+        \parallelValue{frobeniusNorm}.
+\end{enumerate}
+
+\section{Vecteurs en mode MULTI}
+\nextSectionFormSkel
+
+Deux cas sont générés : $(v,n)=((1,2,3),2)$ puis 
+$(v,n)=((1,2,3,4,5),4)$.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=multiVectorSum]{$$\sum_{i=0}^{n}v_i$$}
+        \multiCaseTable{multiVectorSum}{2}{6}{4}{15}
+
+  \item \formulaToSkel[label=multiVectorNorm]{$$\lVert v \rVert$$}
+        \multiCaseTable{multiVectorNorm}{2}{$\approx3.7416573868$}
+                                         {4}{$\approx7.4161984871$}
+
+  \item \formulaToSkel[label=multiVectorLast]{$$v[n]$$}
+        \multiCaseTable{multiVectorLast}{2}{3}{4}{5}
+
+  \item \formulaToSkel[label=multiVectorShift]{$$\sum_{i=0}^{n-1}v[i+1]$$}
+        \multiCaseTable{multiVectorShift}{2}{5}{4}{14}
+\end{enumerate}
+
+\section{Vecteur chargé depuis un fichier externe}
+\nextSectionFormSkel
+
+\formulaToSkelDef{$u\in\mathbb{R}^{5},\ n\in\mathbb{N}$}
+Le vecteur n'est pas écrit directement dans la configuration. Le champ
+\texttt{file} de la section 6 pointe vers le fichier MatrixMarket
+\texttt{data/external-vector.mtx}, qui contient
+$u=(1.5,-2,3.25,4,0.25)$. La configuration fixe $n=4$ et demande des
+exécutions avec $1$, $2$ et $4$ processus.
+
+\begin{enumerate}
+  \item \formulaToSkel[label=externalVectorSum]{$$1 + \sum_{i=0}^{n}u_i$$}
+        Attendu : $8$. Obtenu : \parallelValue{externalVectorSum}.
+
+  \item \formulaToSkel[label=externalVectorNorm]{$$\lVert u \rVert$$}
+        Attendu : environ $5.7336724706$. Obtenu :
+        \parallelValue{externalVectorNorm}.
+\end{enumerate}
+
+\end{document}

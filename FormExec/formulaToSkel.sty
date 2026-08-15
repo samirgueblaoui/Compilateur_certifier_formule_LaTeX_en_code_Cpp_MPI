@@ -1,0 +1,645 @@
+% Execution (parallel, distributed or sequential) of mathematical formulas
+% Frédéric Gava and Joel Falcou
+
+%https://www.tuteurs.ens.fr/logiciels/latex/nouveau_package.html
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{formulaToSkel}[2026/01/09]
+
+\RequirePackage{keyval}
+\RequirePackage{xkeyval}
+\RequirePackage{hyperref}
+\RequirePackage{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{amsfonts}
+\RequirePackage{ifthen}
+\RequirePackage{todonotes}
+
+
+\MakeRobust\begin
+\MakeRobust\end
+
+
+\RequirePackage[rerun=always,runall]{pythontex}
+%\setpythontexlistingenv{pylisting}
+
+
+% *****************************************************
+% What is needed on the distant server:
+%  (0) Bash
+%  (1) Java
+%  (2) OCaml
+%  (3) C++
+%  (4) Blast for and OCaml, Java
+
+
+% *****************************************************
+% What is needed on your own computer :
+%  (0) - LaTex (with common appropriate packages and obligatory "pythontex")
+%      - Python, C++, Bash (already installed on most Linux/Mac-Apple OS)
+%      - (OPTIONAL): Java, OCaml
+%  (1) (OPTIONAL) pip install Pygments for highlight syntax
+%  (2) The ~/.ssh/environment (local and server) file need to be used to enable 
+% 		the "PermitUserEnvironment yes". On your own computer, edit "/etc/ssh/sshd_config" 
+%		and put	"PermitUserEnvironment yes"; 
+%		Then, restart  ssh with "/etc/init.d/ssh restart"
+%  (3)(OPTIONAL) For SublimeText preview, please add (and complete) this line (of course, with the right path to the file)
+%
+%	    preview_math_template_file": "\\input{/home/gava/Bureau/LISN-CNRS/src/formulaToSkel.sty},
+%
+% 		within the "Preferences.sublime-settings" file (available at menu "Preferences"=>"Settings");
+% 		You could use "$tex_root/..."
+%  (4) (OPTIONAL) For MSCode/Codium and the LaTeX Workshop extension, you can update the field
+%		latex-workshop.hover.preview.newcommand.newcommandFile
+%	with /home/gava/Bureau/LISN-CNRS/src/formulaToSkel.sty (Set the path of a file containing newcommands to be used
+%	in Hover Preview. If the path is relative, it is joined with the root dir); Currently not working because
+%	WorkShop only manage single line latex newcommands :(
+
+
+% Distant bash execution is needed, so please read
+%	 https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html
+%	 When Bash is invoked as an interactive login shell, or as a non-interactive shell with the --login option, it 
+%	 first reads and executes commands from the file /etc/profile, if that file exists. After reading that file, it
+%	 looks for ~/.bash_profile, ~/.bash_login, and ~/.profile, in that order, and reads and executes commands from 
+%	 the first one that exists and is readable and the --rcfile option may be used to force another file to be read,
+%	 but neither rshd nor sshd generally invoke the shell with those options or allow them to be specified.
+% 	 EXAMPLE OF a .bash_profile file
+%export PATH=/home/gava/Téléchargements/jdk-15.0.2/bin:$PATH
+%eval $(opam env)
+
+%#!/bin/bash
+%if [[ -f "/etc/passwd" ]]
+%then
+%    echo "This file exists on your filesystem."
+%fi
+
+%[[ -f <file> ]] && echo "This file exists!"
+%[ -f <file> ] && echo "This file exists!"
+
+%ifeq ("$(shell ssh gava@127.0.0.1 'if [ -f ~/.bash_profile ]; then echo yes; else echo no; fi')","yes")
+%	@echo "GAGNE"
+%else
+%	@echo "Error (compilation): ~/.bash_profile is missing on the remote server!"
+%	@exit 1
+%endif
+
+
+% *********************************** What is interesting
+% 1) Latex-2-Sympy
+ %https://marketplace.visualstudio.com/items?itemName=OrangeX4.latex-sympy-calculator
+ %https://pypi.org/project/latex2sympy2/
+% 2) 
+
+
+
+
+
+
+% *********************************** des notes a supprimer...
+% Tentative d'environnement de mathsEXE...
+% \RequirePackage{environ}
+% \NewEnviron{mathsEXE}{%
+% \protect\formulaToSkel{\BODY}
+% }
+%https://www.gnu.org/software/make/manual/html_node/Conditional-Syntax.html
+%https://stackoverflow.com/questions/10883836/how-to-do-a-conditional-statement-in-makefile
+
+%https://stackoverflow.com/questions/12845206/check-if-file-exists-on-remote-host-with-ssh
+%https://stackoverflow.com/questions/8344859/how-to-check-if-a-file-exists-on-a-server-with-bash
+%https://codetryout.com/bash-script-check-if-file-exists-on-remote-server/
+%https://www.unix.com/shell-programming-and-scripting/199049-ssh-remote-server-check-if-file-exists.html
+
+%foreach
+%result[i]=0.3f*red[i]+0.59f*green[i]+0.1f*blue[i
+
+%  jar cf app.jar Classe1.class Classe2.class
+
+%   LIRE SUR SSH ave Python
+%https://stackoverflow.com/questions/1596963/read-a-file-from-server-with-ssh-using-python
+%import subprocess
+%ssh = subprocess.Popen(['ssh', 'user@host', 'cat', 'path/to/file'],stdout=subprocess.PIPE)
+%for line in ssh.stdout:
+%	print(line)
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Pour gérer les deux types d'options :                                  %
+%  1. les options normales (\DeclareOption{...}{...})                    %
+%  2. les options type key-val option=value (\define@key{...}{...}{...}) %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Code from ?????? (find on a web-forum)
+\@ifundefined{my@unusedlist}{%
+  \let\my@unusedlist\@empty}{}
+\@ifundefined{my@extractkey}{%
+  \def\my@extractkey#1=#2\my@extractkey{#1}}{}
+\newcommand{\ProcessUnusedOptions}[1]{%
+  \let\my@tempa\@empty
+  \let\my@tempb\@empty
+  \@for\CurrentOption:=\my@unusedlist\do{%
+    \expandafter\expandafter\expandafter\def
+    \expandafter\expandafter\expandafter\my@key
+    \expandafter\expandafter\expandafter{%
+      \expandafter\my@extractkey\CurrentOption=\my@extractkey}%
+    \@ifundefined{KV@#1@\my@key}{%
+      \edef\my@tempa{\my@tempa,\CurrentOption,}}{%
+      \edef\my@tempb{\my@tempb,\CurrentOption,}}}%
+  \@for\CurrentOption:=\my@tempa\do{%
+    \ifx\CurrentOption\@empty\else
+      \PackageWarning{mypack}{`\CurrentOption' not defined.}\fi}%
+  \edef\my@tempb{%
+    \noexpand\setkeys{#1}{\my@tempb}}%
+  \my@tempb
+  \AtEndOfPackage{\let\@unprocessedoptions\relax}}
+
+\DeclareOption*{%
+  \expandafter\expandafter\expandafter\def
+  \expandafter\expandafter\expandafter\my@unusedlist
+  \expandafter\expandafter\expandafter{%
+    \expandafter\my@unusedlist\expandafter,%
+    \CurrentOption}}
+%%%%%%%%%%%%%%%
+% Fin du bloc %
+%%%%%%%%%%%%%%%
+
+
+\AtEndOfPackage{
+\ifnum\pdf@shellescape=1\relax\else
+        \PackageError{formulaToSkel}%
+         {You must invoke LaTeX with the -shell-escape flag. Refer to the FormToSkel tool documentation for more information. Pass the -shell-escape flag to LaTeX; Peraps option --enable-write18 works for MikTex}%
+         { Pass the -shell-escape flag to LaTeX. }%
+\fi}
+
+
+
+\ifnum\inputlineno=\m@ne
+\let\showlineno\@empty
+\else
+\def\showlineno{\the\inputlineno}
+\fi
+
+
+\typeout{FormulaToSkel begin !}
+
+
+% *************************************************************
+% *********************** Codes Python  ***********************
+% *************************************************************
+\begin{pycode}
+import formToSkel
+\end{pycode}
+
+
+% *************************************************************
+% *************************************************************
+% *********************** Package parameters  *****************
+% *************************************************************
+% *************************************************************
+
+\newif\if@ocaml \@ocamlfalse
+\newif\if@cplusplus \@cplusplusfalse
+\newif\if@java \@javafalse
+
+% Update the boolean of which language has been selected
+\define@key{mypack}{language}[C++]{
+\ifthenelse{\equal{#1}{OCaml}}{\@ocamltrue\@javafalse\@cplusplusfalse}{
+	\ifthenelse{\equal{#1}{C++}}{\@cplusplustrue\@ocamlfalse\@javafalse}{
+		\ifthenelse{\equal{#1}{Java}}{\@javatrue\@cplusplusfalse\@ocamlfalse}{
+			\PackageError{formulaToSkel}%
+          				{Give a correct language to this package. Refer to the FormToSkel
+           				 documentation for more information. You must invoke this package with the language=OCaml or C++ or Java}%
+          				 {Invoke this package with language=OCaml or C++ or Java.}}}}}
+
+\newcommand{\formulaToSkelServer}{127.0.0.1}
+\newcommand{\formulaToSkelServerDir}{~/formSkelExe}
+\newcommand{\formulaToSkelServerAccess}{~/formSkelExe}
+\newcommand{\formulaToSkelServerHTTP}{https://api.grid5000.fr/stable/sites/nantes/public/}
+\newcommand{\formulaToSkelSecretId}{123456}
+\newcommand{\formulaToSkelSecretIdVisible}{true}
+
+\newcommand{\formulaToSkelLocalLib}{~/lib}
+
+\define@key{mypack}{server}[127.0.0.1]{
+	\renewcommand{\formulaToSkelServer}{#1}
+}
+
+\define@key{mypack}{secretId}[123456]{
+	\renewcommand{\formulaToSkelSecretId}{#1}
+}
+
+\define@key{mypack}{secretIdVisible}[true]{
+	\renewcommand{\formulaToSkelSecretIdVisible}{#1}
+}
+
+\define@key{mypack}{serverDir}[~/formSkelExe]{
+	\renewcommand{\formulaToSkelServerDir}{#1}
+}
+
+\define@key{mypack}{serverAccess}[~/formSkelExe]{
+	\renewcommand{\formulaToSkelServerAccess}{#1}
+}
+
+\define@key{mypack}{serverHTTP}[https://api.grid5000.fr/stable/sites/nantes/public/]{
+	\renewcommand{\formulaToSkelServerHTTP}{#1}
+}
+
+
+\define@key{mypack}{localLib}[~/lib]{
+	\renewcommand{\formulaToSkelLocalLib}{#1}
+}
+
+\ProcessOptions
+\ProcessUnusedOptions{mypack}
+
+
+\define@cmdkey{formToSkel}{language}{}
+\define@cmdkey{formToSkel}{timer}{}
+\define@cmdkey{formToSkel}{section}{}
+\define@cmdkey{formToSkel}{nthProcessor}{}
+\define@cmdkey{formToSkel}{formula}{}
+\define@cmdkey{formToSkel}{visible}{}
+\define@cmdkey{formToSkel}{label}{}
+\define@cmdkey{formToSkel}{maxSize}{}
+\define@cmdkey{formToSkel}{maxDecimal}{}
+
+
+
+% *************************************************************
+% *********************** OCaml command  **********************
+% *************************************************************
+\if@ocaml
+% ****************** formulaToSkel ****************************
+\newcommand{\formulaToSkel}[2][]{%
+  \setkeys{formToSkel}{
+  	visible = true,
+  	language = OCaml,
+    #1
+  } 
+	\typeout{!!! Add a new formula !!!}
+	\ifthenelse{\equal{true}{\cmdKV@formToSkel@visible}}{\todo[inline,color=blue!40]{#2}}{}
+	\pyc{formToSkel.formulaToSkel(r'#2')}
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelBis(r'\cmdKV@formToSkel@label',r'\cmdKV@formToSkel@language',r'\showlineno')}}\x
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelEnd('\formulaToSkelServer','\formulaToSkelServerDir','\formulaToSkelServerAccess','\formulaToSkelLocalLib')}}\x
+}
+\newcommand{\whichLanguageFormToSkel}{OCaml}
+\fi
+
+% *************************************************************
+% *********************** C++ command  ************************
+% *************************************************************
+\if@cplusplus
+% ****************** formulaToSkel ****************************
+\newcommand{\formulaToSkel}[2][]{%
+  \setkeys{formToSkel}{
+  	visible = true,
+  	language = Cplusplus,
+  	label =,
+    #1
+  } 
+	\typeout{!!! Add a new formula !!!}
+	\ifthenelse{\equal{true}{\cmdKV@formToSkel@visible}}{\todo[inline,color=blue!40]{#2}}{}
+	\pyc{formToSkel.formulaToSkel(r'#2')}
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelBis(r'\cmdKV@formToSkel@label',r'\cmdKV@formToSkel@language',r'\showlineno')}}\x
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelEnd('\formulaToSkelServer','\formulaToSkelServerDir','\formulaToSkelServerAccess','\formulaToSkelLocalLib')}}\x
+}
+\newcommand{\whichLanguageFormToSkel}{C++}
+\fi
+
+% *************************************************************
+% *********************** Java command ************************
+% *************************************************************
+\if@java
+% ****************** formulaToSkel ****************************
+\newcommand{\formulaToSkel}[2][]{%
+  \setkeys{formToSkel}{
+  	visible = true,
+  	language = Java,
+  	label =,
+    #1
+  } 
+	\typeout{!!! Add a new formula !!!}
+	\ifthenelse{\equal{true}{\cmdKV@formToSkel@visible}}{\todo[inline,color=blue!40]{#2}}{}
+	\pyc{formToSkel.formulaToSkel(r'#2')}
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelBis(r'\cmdKV@formToSkel@label',r'\cmdKV@formToSkel@language',r'\showlineno')}}\x
+	\begingroup\edef\x{\endgroup 
+		\noexpand\pyc{formToSkel.formulaToSkelEnd('\formulaToSkelServer','\formulaToSkelServerDir','\formulaToSkelServerAccess','\formulaToSkelLocalLib')}}\x
+}
+\newcommand{\whichLanguageFormToSkel}{Java}
+\fi
+
+
+% *************************************************************
+% *************************************************************
+% *********************** Independant language ****************
+% *************************************************************
+% *************************************************************
+\makeatletter
+
+
+
+% *************************************************************
+% Macro for definition
+% *************************************************************
+\newcommand*{\eqdef}{\stackrel{\text{def}}{=}}
+
+% *************************************************************
+% Macro for step printing
+% *************************************************************
+\newcommand{\FSDummyMacroForENV}{} % dummy macro
+\newenvironment{FSsteps}[1][]{%
+  \renewcommand{\FSDummyMacroForENV}{#1}%
+ \ifx&#1&
+  \left\|\begin{array}{rcll}
+ \else
+  \begin{array}{l} \!\!\!\!#1 \\ \left\|\begin{array}{rcll}
+\fi
+}{
+ \if&\FSDummyMacroForENV&
+ \end{array}\right.
+ \else
+ \end{array}\right. \end{array}
+ \fi
+}
+
+\newcommand{\formToSkelNumber}[1]{\text{\footnotesize \textcircled{{\tiny $#1$}}}}
+\newcommand{\FSassign}[1]{\overset{\ \formToSkelNumber{#1}}{\Leftarrow}}
+
+
+% *************************************************************
+% ****************** copyFormula ******************************
+% *************************************************************
+\newcommand{\copyFormula}[2][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    label =,
+    language = Cplusplus,
+    formula=1,
+    #1
+  }  
+\typeout{!!! Copy of a formula !!!}
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.copyFormula(r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@formula', r'\cmdKV@formToSkel@language',r'\cmdKV@formToSkel@label',r'\showlineno',r'#2')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelValue *********************
+% *************************************************************
+\newcommand{\formulaToSkelValue}[1][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    formula = 1,
+    label =,
+    nthProcessor = 1,
+    maxSize = 10,
+   	maxDecimal = 2,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelValue(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxSize',r'\cmdKV@formToSkel@maxDecimal',r'\cmdKV@formToSkel@formula', r'\cmdKV@formToSkel@nthProcessor',r'\cmdKV@formToSkel@label',r'\formulaToSkelServer',r'\formulaToSkelServerDir',r'\formulaToSkelServerAccess',r'\formulaToSkelServerHTTP',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelTime *********************
+% *************************************************************
+\newcommand{\formulaToSkelTime}[1][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    formula = 1,
+    label =,
+    nthProcessor = 1,
+    timer = seconds,
+    maxDecimal = 2,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelTime(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxDecimal',r'\cmdKV@formToSkel@formula', r'\cmdKV@formToSkel@nthProcessor',r'\cmdKV@formToSkel@timer',r'\cmdKV@formToSkel@label',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelNthValue *********************
+% *************************************************************
+\newcommand{\formulaToSkelNthValue}[2][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    formula = 1,
+    label =,
+    nthProcessor = 1,
+    maxSize = 10,
+   	maxDecimal = 2,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelNthValue(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxSize',r'\cmdKV@formToSkel@maxDecimal',r'\cmdKV@formToSkel@formula', r'#2',r'\cmdKV@formToSkel@nthProcessor',r'\cmdKV@formToSkel@label','\formulaToSkelServer',r'\formulaToSkelServerDir',r'\formulaToSkelServerAccess',r'\formulaToSkelServerHTTP',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelNthTime *********************
+% *************************************************************
+\newcommand{\formulaToSkelNthTime}[2][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    formula = 1,
+    label =,
+    nthProcessor = 1,
+    timer = seconds,
+    maxDecimal = 2,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelNthTime(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxDecimal',r'\cmdKV@formToSkel@formula', r'#2',r'\cmdKV@formToSkel@nthProcessor',r'\cmdKV@formToSkel@timer',r'\cmdKV@formToSkel@label',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelNthProc *********************
+% *************************************************************
+\newcommand{\formulaToSkelNthProc}[2][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelNthProc(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'#2',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelNth *************************
+% *************************************************************
+\newcommand{\formulaToSkelNth}[3][]{%
+  \setkeys{formToSkel}{
+    section = Current,
+    maxSize = 10,
+   	maxDecimal = 2,
+    #1
+  }
+\begingroup\edef\x{\endgroup
+    \noexpand\pyc{formToSkel.formulaToSkelNth(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxSize',r'\cmdKV@formToSkel@maxDecimal',r'#2',r'#3',r'\formulaToSkelServer', r'\formulaToSkelServerDir',r'\formulaToSkelServerAccess',r'\formulaToSkelServerHTTP',r'\showlineno')}}\x
+}
+
+% *************************************************************
+% ****************** formulaToSkelParam *************************
+% *************************************************************
+ \newcommand{\formulaToSkelParam}[2][]{%
+   \setkeys{formToSkel}{
+     section = Current,
+     maxSize = 10,
+   	 maxDecimal = 2,
+     #1
+   }
+ \begingroup\edef\x{\endgroup
+      \noexpand\pyc{formToSkel.formulaToSkelParam(r'\formulaToSkelSecretId', r'\formulaToSkelSecretIdVisible', r'\cmdKV@formToSkel@section',r'\cmdKV@formToSkel@maxSize',r'\cmdKV@formToSkel@maxDecimal',r'#2',r'\formulaToSkelServer', r'\formulaToSkelServerDir',r'\formulaToSkelServerAccess',r'\formulaToSkelServerHTTP',r'\showlineno')}}\x
+ }
+
+
+% *************************************************************
+% ****************** formulaToSkelPrintEnv*********************
+% *************************************************************
+ \newcommand{\formulaToSkelPrintEnv}[1][]{%
+   \setkeys{formToSkel}{
+     section = Current,
+     #1
+   }
+ \begingroup\edef\x{\endgroup
+     \noexpand\pyc{formToSkel.formulaToSkelPrintEnv(r'\cmdKV@formToSkel@section',r'\showlineno')}}\x
+ }
+
+
+% *************************************************************
+% ****************** formulaToSkelPrintMarkingMarket **********
+% *************************************************************
+% \newcommand{\formSkelPrintMarkingMarket}[2][]{%
+%   \setkeys{formToSkel}{
+%    maxSize = 10,
+%    maxDecimal = 2,
+%    #1
+%   }
+% \begingroup\edef\x{\endgroup
+%     \noexpand\pyc{formToSkel.formulaToSkelPrintMarkingMarket(r'\cmdKV@formToSkel@maxSize',r'\cmdKV@formToSkel@maxDecimal',r'#2',r'\showlineno')}}\x
+% }
+% \makeatother
+
+
+% *************************************************************
+% ****************** formulaToSkelDef *************************
+% *************************************************************
+\newcommand{\formulaToSkelDef}[1]{
+ \!#1\!\!\!\!
+ \pyc{formToSkel.formulaToSkelAddToDef(r'#1',r'\showlineno')}
+}
+
+% *************************************************************
+% ****************** nextSectionFormSkel **********************
+% *************************************************************
+\newcommand{\nextSectionFormSkel}{
+\typeout{!!! Changing of FormToSkel Section !!!}
+\pyc{formToSkel.nextSectionFormSkel()}}
+
+% *************************************************************
+% ****************** currentSectionFormSkel *******************
+% *************************************************************
+\newcommand{\currentSectionFormSkel}{\pyc{formToSkel.currentSectionFormSkel()}}
+
+
+% *************************************************************
+% ****************** formulaToSkelEnd *************************
+% *************************************************************
+\newcommand{\formulaToSkelEnd}{
+	%\immediate\write18{rm -v -f formSkel/cptSection}
+	%\immediate\write18{rm -v -f formSkel/cptForm}
+	\immediate\write18{pythontex --interpreter python:python3 --job 1 \jobname.tex}
+	\immediate\write18{python3 formSkel/end.py}
+	%\immediate\write18{./formToSkel}
+}
+
+\AfterEndDocument{\formulaToSkelEnd}
+\endinput
+
+
+
+
+
+
+
+
+
+
+% *************************************************************
+% *************************************************************
+% *********************** Old things **************************
+% *************************************************************
+% *************************************************************
+
+
+% \newcommand{\formulaToSkel}[2][visible]{
+% 	\ifthenelse{\equal{#1}{visible}}{\todo[inline,color=blue!40]{#2}}{}
+% 	\pyc{formulaToSkel(r'#2',r'OCaml')}
+% 	\begingroup\edef\x{\endgroup
+%     \noexpand\pyc{formulaToSkelEnd('\formulaToSkelServer','\formulaToSkelServerDir')}}\x
+% }
+
+
+% \newcommand{\formulaToSkel}[2][visible]{
+% 	\ifthenelse{\equal{#1}{visible}}{\todo[inline,color=blue!40]{#2}}{}
+%   \todo[fancyline]{Code: \url{#2}}
+% 	\pyc{formulaToSkel(r'#2',r'Cplusplus')}
+% 	\begingroup\edef\x{\endgroup
+%     \noexpand\pyc{formulaToSkelEnd('\formulaToSkelServer','\formulaToSkelServerDir')}}\x
+% }
+
+
+%\newcommand{\formulaToSkelNthValue}[4][Current]{\pyc{formulaToSkelNthValue(r'#1',r'#2',r'#3',r'#4')}}
+%\newcommand{\formulaToSkelNth}[3][Current]{\pyc{formulaToSkelNth(r'#1',r'#2',r'#3')}} 
+%\newcommand{\formulaToSkelNthProc}[2][Current]{\pyc{formulaToSkelNthProc(r'#1',r'#2')}}
+%\newcommand{\formulaToSkelTime}[3][Current]{\pyc{formulaToSkelTime(r'#1',r'#2',r'#3')}}
+
+
+%# Write the server name in a file
+%fileServ = open("./formSkel/nameServer.formSkel.in", "w")
+%fileServ.write(
+		%"""+server+") \n"
+
+%\newcommand{\test}{\input|"echo '\todo[inline,color=red!40]{coucou}'"}
+%\newcommand{\test}[1]{\input|"echo '\todo[inline,color=red!40]{coucou}'"}
+%\newcommand{\test}[1]{
+	%\immediate\write18{echo '#1' > listefichiers.tmp}
+	%\immediate\write18{python test.py '#1' > listefichiers.tmp}
+	%\input{listefichiers.tmp}
+%}
+%\AfterEndDocument{\test[END]}
+%--shell-escape
+%\begin{filecontents*}{zz.py}
+%print("one")
+%print("two")
+%\end{filecontents*}
+
+% What to do when reaching the end of the document. Not working with pythontex :(
+%\usepackage{atveryend}
+% Do not work (nor using \AtEndDocument{...})
+%\BeforeClearDocument{\pyc{formulaToSkelEnd()}}
+%\AtVeryVeryEnd{\begin{pycode} formulaToSkelEnd() \end{pycode}}
+%\AtVeryVeryEnd{\pyc{formulaToSkelEnd()}}
+
+
+
+% fileFormToSkelOUT = open(namefileOUT, "r")
+% 					line = fileFormToSkelOUT.read()
+% 					if line=="MULTI":
+% 						#print("\\todo[inline,color=red!40]{")
+% 						#print("FormSkel-error: a MULTI output has been found in place a of SOLO one #for section "+section+" formula "+form+" "+nth+"th value")
+% 						#print("}")
+% 						pass
+% 					elif line=="ERROR":
+% 						print("\\todo[inline,color=red!40]{")
+% 						line = fileFormToSkelOUT.read()
+% 						print("FormSkel-error: "+line+"for "+section+" formula "+form+" "+nth+"th value")
+% 						print("}")
+% 					else:
+% 						result = fileFormToSkelOUT.read()
+% 						fileFormToSkelOUT.close()
+% 						print("\\todo[inline,color=green!40]{")
+% 						print(result)
+% 						print("}")

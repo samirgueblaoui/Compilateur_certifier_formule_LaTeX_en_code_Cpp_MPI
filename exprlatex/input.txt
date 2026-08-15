@@ -1,0 +1,26 @@
+\int_{a}^4 x+1 \derive{x} + 2x+3(y-1)(\sum_{i=1}^{n} ((1/2) + 4*x) \quad / - (5.45*6) * \sin(a!) * x^2 + \f(i,j)) + -3 + \sum_{i=1}^{n} i
+
+\lVert 4^T \rVert_F
+
+\int_{a}^4 x+1 \derive{x}
+
+\sum_{i=0}^n 2x+1
+
+
+% https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
+% https://github.com/skepu/skepu/blob/main/examples/ppmcc.cpp
+n(\sum_{i=0}^n x_i y_i) - 
+ \dfrac{(\sum_{i=0}^n x_i) \times (\sum_{i=0}^n y_i)}
+      {
+      \sqrt{
+          (n(\sum_{i=0}^n x_i^2) - (\sum_{i=0}^n x_i)^2)
+        \times
+          (n(\sum_{i=0}^n y_i^2) - (\sum_{i=0}^n y_i)^2)
+           }
+      }
+
+% Test depuis la sortie du package
+\sum _{i=0}^n(\cos (2i)+\sum _{j=0}^n\sin (2j))
+
+% Bidon pour test norm
+\sum_{i=0}^{n, i \neq \frac{n}{2}} 2v^{-1} + \lVert v^T \rVert_F - v[i]
