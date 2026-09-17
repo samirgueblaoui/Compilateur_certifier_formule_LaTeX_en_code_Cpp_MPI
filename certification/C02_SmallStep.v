@@ -5,7 +5,7 @@ From Stdlib Require Import ZArith.ZArith.
 From Stdlib Require Import Reals.Reals.
 From Stdlib Require Import Relations.Relation_Operators.
 From Stdlib Require Import Lia.
-From Certification2 Require Export C01_TargetCompiler.
+From certification Require Export C01_TargetCompiler.
 
 Import ListNotations.
 Open Scope string_scope.
@@ -14,324 +14,319 @@ Open Scope R_scope.
 
 
 (** Convertit une valeur source en valeur cible. *)
-Definition cvalue_of_value (v : value) : cvalue :=
+Definition valVersCible (v : val) : valCible :=
   match v with
-  | VInt n => CVInt n
-  | VFloat r => CVFloat r
+  | VEnt n => VCEnt n
+  | VFlot r => VCFlot r
   end.
 
-(** Convertit partiellement une valeur cible en valeur source. *)
-Definition value_of_cvalue (v : cvalue) : option value :=
+
+Definition cibleVersVal (v : valCible) : option val :=
   match v with
-  | CVInt n => Some (VInt n)
-  | CVFloat r => Some (VFloat r)
-  | CVBool _ => None
+  | VCEnt n => Some (VEnt n)
+  | VCFlot r => Some (VFlot r)
+  | VCBool _ => None
   end.
 
 (** Met à jour une case de la mémoire cible. *)
-Definition store_update (sigma : store) (x : var) (v : cvalue) : store :=
+Definition majMem (sigma : mem) (x : var) (v : valCible) : mem :=
   fun y => if String.eqb y x then Some v else sigma y.
 
 (** Supprime une liste de variables de la mémoire. *)
-Fixpoint store_remove (sigma : store) (xs : list var) : store :=
+Fixpoint effMem (sigma : mem) (xs : list var) : mem :=
   match xs with
   | [] => sigma
-  | x :: tl =>
-      store_remove
-        (fun y => if String.eqb y x then None else sigma y) tl
+  | x :: suite =>
+      effMem
+        (fun y => if String.eqb y x then None else sigma y) suite
   end.
 
-(** Additionne deux valeurs numériques cibles. *)
-Definition add_cvalues (v1 v2 : cvalue) : option cvalue :=
+(** Additionne deux valeurs cibles. *)
+Definition additionCible (v1 v2 : valCible) : option valCible :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 => Some (CVInt (n1 + n2))
-  | CVInt n1, CVFloat r2 => Some (CVFloat (IZR n1 + r2))
-  | CVFloat r1, CVInt n2 => Some (CVFloat (r1 + IZR n2))
-  | CVFloat r1, CVFloat r2 => Some (CVFloat (r1 + r2))
+  | VCEnt n1, VCEnt n2 => Some (VCEnt (n1 + n2))
+  | VCEnt n1, VCFlot r2 => Some (VCFlot (IZR n1 + r2))
+  | VCFlot r1, VCEnt n2 => Some (VCFlot (r1 + IZR n2))
+  | VCFlot r1, VCFlot r2 => Some (VCFlot (r1 + r2))
   | _, _ => None
   end.
 
-(** Multiplie deux valeurs numériques cibles. *)
-Definition mul_cvalues (v1 v2 : cvalue) : option cvalue :=
+Definition multCible (v1 v2 : valCible) : option valCible :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 => Some (CVInt (n1 * n2))
-  | CVInt n1, CVFloat r2 => Some (CVFloat (IZR n1 * r2))
-  | CVFloat r1, CVInt n2 => Some (CVFloat (r1 * IZR n2))
-  | CVFloat r1, CVFloat r2 => Some (CVFloat (r1 * r2))
+  | VCEnt n1, VCEnt n2 => Some (VCEnt (n1 * n2))
+  | VCEnt n1, VCFlot r2 => Some (VCFlot (IZR n1 * r2))
+  | VCFlot r1, VCEnt n2 => Some (VCFlot (r1 * IZR n2))
+  | VCFlot r1, VCFlot r2 => Some (VCFlot (r1 * r2))
   | _, _ => None
   end.
 
-(** Soustrait deux valeurs numériques cibles. *)
-Definition sub_cvalues (v1 v2 : cvalue) : option cvalue :=
+Definition soustrCible (v1 v2 : valCible) : option valCible :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 => Some (CVInt (n1 - n2))
-  | CVInt n1, CVFloat r2 => Some (CVFloat (IZR n1 - r2))
-  | CVFloat r1, CVInt n2 => Some (CVFloat (r1 - IZR n2))
-  | CVFloat r1, CVFloat r2 => Some (CVFloat (r1 - r2))
+  | VCEnt n1, VCEnt n2 => Some (VCEnt (n1 - n2))
+  | VCEnt n1, VCFlot r2 => Some (VCFlot (IZR n1 - r2))
+  | VCFlot r1, VCEnt n2 => Some (VCFlot (r1 - IZR n2))
+  | VCFlot r1, VCFlot r2 => Some (VCFlot (r1 - r2))
   | _, _ => None
   end.
 
-(** Calcule le modulo de deux entiers cibles. *)
-Definition mod_cvalues (v1 v2 : cvalue) : option cvalue :=
+Definition modCible (v1 v2 : valCible) : option valCible :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 =>
-      if Z.eq_dec n2 0 then None else Some (CVInt (Z.modulo n1 n2))
+  | VCEnt n1, VCEnt n2 =>
+      if Z.eq_dec n2 0 then None else Some (VCEnt (Z.modulo n1 n2))
   | _, _ => None
   end.
 
-(** Compare deux valeurs numériques cibles. *)
-Definition le_cvalues (v1 v2 : cvalue) : option cvalue :=
+Definition infEgCible (v1 v2 : valCible) : option valCible :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 => Some (CVBool (Z.leb n1 n2))
-  | CVInt n1, CVFloat r2 =>
-      Some (CVBool (if Rle_dec (IZR n1) r2 then true else false))
-  | CVFloat r1, CVInt n2 =>
-      Some (CVBool (if Rle_dec r1 (IZR n2) then true else false))
-  | CVFloat r1, CVFloat r2 =>
-      Some (CVBool (if Rle_dec r1 r2 then true else false))
+  | VCEnt n1, VCEnt n2 => Some (VCBool (Z.leb n1 n2))
+  | VCEnt n1, VCFlot r2 =>
+      Some (VCBool (if Rle_dec (IZR n1) r2 then true else false))
+  | VCFlot r1, VCEnt n2 =>
+      Some (VCBool (if Rle_dec r1 (IZR n2) then true else false))
+  | VCFlot r1, VCFlot r2 =>
+      Some (VCBool (if Rle_dec r1 r2 then true else false))
   | _, _ => None
   end.
 
-(** Teste l'égalité de deux valeurs cibles. *)
-Definition eq_cvalues (v1 v2 : cvalue) : bool :=
+Definition egalCible (v1 v2 : valCible) : bool :=
   match v1, v2 with
-  | CVInt n1, CVInt n2 => Z.eqb n1 n2
-  | CVFloat r1, CVFloat r2 =>
+  | VCEnt n1, VCEnt n2 => Z.eqb n1 n2
+  | VCFlot r1, VCFlot r2 =>
       if Req_EM_T r1 r2 then true else false
-  | CVBool b1, CVBool b2 => Bool.eqb b1 b2
+  | VCBool b1, VCBool b2 => Bool.eqb b1 b2
   | _, _ => false
   end.
 
 (** Calcule le nombre de groupes enfants. *)
-Definition nb_groups_sem (size : Z) : Z :=
-  if Z.gtb size 1 then 2 else 1.
+Definition semNbGroupes (nbProc : Z) : Z :=
+  if Z.gtb nbProc 1 then 2 else 1.
 
 (** Calcule la taille maximale d'un groupe enfant. *)
-Definition group_size_sem (size groups : Z) : Z :=
-  Z.div (size + groups - 1) groups.
+Definition semTailleGroupe (nbProc nbGroupes : Z) : Z :=
+  Z.div (nbProc + nbGroupes - 1) nbGroupes.
 
 (** Calcule le groupe associé à un rang. *)
-Definition color_sem (rank group_size groups : Z) : Z :=
-  Z.min (Z.div rank group_size) (groups - 1).
+Definition semCouleur (rang tailleGroupe nbGroupes : Z) : Z :=
+  Z.min (Z.div rang tailleGroupe) (nbGroupes - 1).
 
 (** Calcule le rang local dans un groupe enfant. *)
-Definition child_rank_sem (rank color group_size : Z) : Z :=
-  rank - color * group_size.
+Definition semRangEnfant (rang couleur tailleGroupe : Z) : Z :=
+  rang - couleur * tailleGroupe.
 
-(** Calcule la taille effective d'un groupe enfant. *)
-Definition child_size_sem (size color group_size : Z) : Z :=
-  Z.min group_size (size - color * group_size).
+(** Calcule la taille d'un groupe enfant. *)
+Definition semTailleEnfant (nbProc couleur tailleGroupe : Z) : Z :=
+  Z.min tailleGroupe (nbProc - couleur * tailleGroupe).
 
 
-(** Évalue une expression cible dans une mémoire. *)
-Fixpoint aeval (sigma : store) (a : aexpr) : option cvalue :=
+(** Éval une expression cible dans une mémoire. *)
+Fixpoint evalCible (sigma : mem) (a : exprCible) : option valCible :=
   match a with
-  | ANumInt n => Some (CVInt n)
-  | ANumFloat r => Some (CVFloat r)
-  | ABool b => Some (CVBool b)
+  | ACstEnt n => Some (VCEnt n)
+  | ACstFlot r => Some (VCFlot r)
+  | ABool b => Some (VCBool b)
   | AVar x => sigma x
-  | AUnaryPrim op a1 =>
-      match aeval sigma a1 with
+  | APrimUn op a1 =>
+      match evalCible sigma a1 with
       | Some cv =>
-          match value_of_cvalue cv with
-          | Some v => Some (cvalue_of_value (unary_target_sem op v))
+          match cibleVersVal cv with
+          | Some v => Some (valVersCible (semUnCible op v))
           | None => None
           end
       | None => None
       end
-  | AAdd a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => add_cvalues v1 v2
+  | APlus a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => additionCible v1 v2
       | _, _ => None
       end
-  | AMul a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => mul_cvalues v1 v2
+  | AMult a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => multCible v1 v2
       | _, _ => None
       end
-  | ASub a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => sub_cvalues v1 v2
+  | AMoins a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => soustrCible v1 v2
       | _, _ => None
       end
   | AMod a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => mod_cvalues v1 v2
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => modCible v1 v2
       | _, _ => None
       end
-  | ABinaryPrim op a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
+  | APrimBin op a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
       | Some cv1, Some cv2 =>
-          match value_of_cvalue cv1, value_of_cvalue cv2 with
+          match cibleVersVal cv1, cibleVersVal cv2 with
           | Some v1, Some v2 =>
-              Some (cvalue_of_value (binary_target_sem op v1 v2))
+              Some (valVersCible (semBinCible op v1 v2))
           | _, _ => None
           end
       | _, _ => None
       end
-  | ALe a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => le_cvalues v1 v2
+  | AInfEg a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => infEgCible v1 v2
       | _, _ => None
       end
-  | AEq a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some v1, Some v2 => Some (CVBool (eq_cvalues v1 v2))
+  | AEg a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some v1, Some v2 => Some (VCBool (egalCible v1 v2))
       | _, _ => None
       end
-  | ANot a1 =>
-      match aeval sigma a1 with
-      | Some (CVBool b) => Some (CVBool (negb b))
+  | ANon a1 =>
+      match evalCible sigma a1 with
+      | Some (VCBool b) => Some (VCBool (negb b))
       | _ => None
       end
-  | AAnd a1 a2 =>
-      match aeval sigma a1, aeval sigma a2 with
-      | Some (CVBool b1), Some (CVBool b2) =>
-          Some (CVBool (andb b1 b2))
+  | AEt a1 a2 =>
+      match evalCible sigma a1, evalCible sigma a2 with
+      | Some (VCBool b1), Some (VCBool b2) =>
+          Some (VCBool (andb b1 b2))
       | _, _ => None
       end
-  | ANbGroups size =>
-      match aeval sigma size with
-      | Some (CVInt p) => Some (CVInt (nb_groups_sem p))
+  | ANbGroupes nbProc =>
+      match evalCible sigma nbProc with
+      | Some (VCEnt p) => Some (VCEnt (semNbGroupes p))
       | _ => None
       end
-  | AGroupSize size groups =>
-      match aeval sigma size, aeval sigma groups with
-      | Some (CVInt p), Some (CVInt g) =>
-          Some (CVInt (group_size_sem p g))
+  | ATailleGroupe nbProc nbGroupes =>
+      match evalCible sigma nbProc, evalCible sigma nbGroupes with
+      | Some (VCEnt p), Some (VCEnt g) =>
+          Some (VCEnt (semTailleGroupe p g))
       | _, _ => None
       end
-  | AColor rank group_size groups =>
-      match aeval sigma rank, aeval sigma group_size,
-            aeval sigma groups with
-      | Some (CVInt r), Some (CVInt t), Some (CVInt g) =>
-          Some (CVInt (color_sem r t g))
+  | ACouleur rang tailleGroupe nbGroupes =>
+      match evalCible sigma rang, evalCible sigma tailleGroupe,
+            evalCible sigma nbGroupes with
+      | Some (VCEnt r), Some (VCEnt t), Some (VCEnt g) =>
+          Some (VCEnt (semCouleur r t g))
       | _, _, _ => None
       end
-  | AChildRank rank color group_size =>
-      match aeval sigma rank, aeval sigma color,
-            aeval sigma group_size with
-      | Some (CVInt r), Some (CVInt c), Some (CVInt t) =>
-          Some (CVInt (child_rank_sem r c t))
+  | ARangEnfant rang couleur tailleGroupe =>
+      match evalCible sigma rang, evalCible sigma couleur,
+            evalCible sigma tailleGroupe with
+      | Some (VCEnt r), Some (VCEnt c), Some (VCEnt t) =>
+          Some (VCEnt (semRangEnfant r c t))
       | _, _, _ => None
       end
-  | AChildSize size color group_size =>
-      match aeval sigma size, aeval sigma color,
-            aeval sigma group_size with
-      | Some (CVInt p), Some (CVInt c), Some (CVInt t) =>
-          Some (CVInt (child_size_sem p c t))
+  | ATailleEnfant nbProc couleur tailleGroupe =>
+      match evalCible sigma nbProc, evalCible sigma couleur,
+            evalCible sigma tailleGroupe with
+      | Some (VCEnt p), Some (VCEnt c), Some (VCEnt t) =>
+          Some (VCEnt (semTailleEnfant p c t))
       | _, _, _ => None
       end
   end.
 
 (** Relation de transition petit pas locale. *)
-Inductive local_step : local_state -> local_state -> Prop :=
-| StepAssign :
+Inductive pasLoc : etatLoc -> etatLoc -> Prop :=
+| PasAffect :
     forall sigma k x a v,
-      aeval sigma a = Some v ->
-      local_step
-        {| ls_store := sigma; ls_kont := KCmd (CAssign x a) :: k |}
-        {| ls_store := store_update sigma x v;
-           ls_kont := KCmd CSkip :: k |}
-| StepSeq :
+      evalCible sigma a = Some v ->
+      pasLoc
+        {| elMem := sigma; elCont := KCmd (CAffect x a) :: k |}
+        {| elMem := majMem sigma x v;
+           elCont := KCmd CRien :: k |}
+| PasSeq :
     forall sigma k c1 c2,
-      local_step
-        {| ls_store := sigma; ls_kont := KCmd (CSeq c1 c2) :: k |}
-        {| ls_store := sigma;
-           ls_kont := KCmd c1 :: KCmd c2 :: k |}
-| StepSkip :
+      pasLoc
+        {| elMem := sigma; elCont := KCmd (CSeq c1 c2) :: k |}
+        {| elMem := sigma;
+           elCont := KCmd c1 :: KCmd c2 :: k |}
+| PasRien :
     forall sigma k,
-      local_step
-        {| ls_store := sigma; ls_kont := KCmd CSkip :: k |}
-        {| ls_store := sigma; ls_kont := k |}
-| StepDel :
+      pasLoc
+        {| elMem := sigma; elCont := KCmd CRien :: k |}
+        {| elMem := sigma; elCont := k |}
+| PasEff :
     forall sigma k xs,
-      local_step
-        {| ls_store := sigma; ls_kont := KDel xs :: k |}
-        {| ls_store := store_remove sigma xs; ls_kont := k |}
-| StepIfTrue :
-    forall sigma k test then_cleanup then_branch
-      else_cleanup else_branch,
-      aeval sigma test = Some (CVBool true) ->
-      local_step
-        {| ls_store := sigma;
-           ls_kont :=
+      pasLoc
+        {| elMem := sigma; elCont := KEff xs :: k |}
+        {| elMem := effMem sigma xs; elCont := k |}
+| PasSiVrai :
+    forall sigma k test netVrai brancheVraie
+      netFaux brancheFausse,
+      evalCible sigma test = Some (VCBool true) ->
+      pasLoc
+        {| elMem := sigma;
+           elCont :=
              KCmd
-               (CIf test then_cleanup then_branch
-                 else_cleanup else_branch) :: k |}
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd then_branch :: KDel then_cleanup :: k |}
-| StepIfFalse :
-    forall sigma k test then_cleanup then_branch
-      else_cleanup else_branch,
-      aeval sigma test = Some (CVBool false) ->
-      local_step
-        {| ls_store := sigma;
-           ls_kont :=
+               (CSi test netVrai brancheVraie
+                 netFaux brancheFausse) :: k |}
+        {| elMem := sigma;
+           elCont :=
+             KCmd brancheVraie :: KEff netVrai :: k |}
+| PasSiFaux :
+    forall sigma k test netVrai brancheVraie
+      netFaux brancheFausse,
+      evalCible sigma test = Some (VCBool false) ->
+      pasLoc
+        {| elMem := sigma;
+           elCont :=
              KCmd
-               (CIf test then_cleanup then_branch
-                 else_cleanup else_branch) :: k |}
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd else_branch :: KDel else_cleanup :: k |}
-| StepForInit :
-    forall sigma k init test step cleanup body,
-      init <> CSkip ->
-      local_step
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd (CFor init test step cleanup body) :: k |}
-        {| ls_store := sigma;
-           ls_kont :=
+               (CSi test netVrai brancheVraie
+                 netFaux brancheFausse) :: k |}
+        {| elMem := sigma;
+           elCont :=
+             KCmd brancheFausse :: KEff netFaux :: k |}
+| PasPourInit :
+    forall sigma k init test etape net corps,
+      init <> CRien ->
+      pasLoc
+        {| elMem := sigma;
+           elCont :=
+             KCmd (CPour init test etape net corps) :: k |}
+        {| elMem := sigma;
+           elCont :=
              KCmd init ::
-             KCmd (CFor CSkip test step cleanup body) :: k |}
-| StepForTrue :
-    forall sigma k test step cleanup body,
-      aeval sigma test = Some (CVBool true) ->
-      local_step
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd (CFor CSkip test step cleanup body) :: k |}
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd body :: KDel cleanup :: KCmd step ::
-             KCmd (CFor CSkip test step cleanup body) :: k |}
-| StepForFalse :
-    forall sigma k test step cleanup body,
-      aeval sigma test = Some (CVBool false) ->
-      local_step
-        {| ls_store := sigma;
-           ls_kont :=
-             KCmd (CFor CSkip test step cleanup body) :: k |}
-        {| ls_store := sigma; ls_kont := KCmd CSkip :: k |}.
+             KCmd (CPour CRien test etape net corps) :: k |}
+| PasPourIter :
+    forall sigma k test etape net corps,
+      evalCible sigma test = Some (VCBool true) ->
+      pasLoc
+        {| elMem := sigma;
+           elCont :=
+             KCmd (CPour CRien test etape net corps) :: k |}
+        {| elMem := sigma;
+           elCont :=
+             KCmd corps :: KEff net :: KCmd etape ::
+             KCmd (CPour CRien test etape net corps) :: k |}
+| PasPourFin :
+    forall sigma k test etape net corps,
+      evalCible sigma test = Some (VCBool false) ->
+      pasLoc
+        {| elMem := sigma;
+           elCont :=
+             KCmd (CPour CRien test etape net corps) :: k |}
+        {| elMem := sigma; elCont := KCmd CRien :: k |}.
 
 (** Clôture réflexive transitive des pas locaux. *)
-Definition local_steps : local_state -> local_state -> Prop :=
-  clos_refl_trans_1n local_state local_step.
+Definition suiteLoc : etatLoc -> etatLoc -> Prop :=
+  clos_refl_trans_1n etatLoc pasLoc.
 
 (** Additionne une liste non vide de valeurs cibles. *)
-Fixpoint cvalue_sum_list (values : list cvalue) : option cvalue :=
-  match values with
+Fixpoint somValsCible (vals : list valCible) : option valCible :=
+  match vals with
   | [] => None
   | [v] => Some v
-  | v :: tl =>
-      match cvalue_sum_list tl with
-      | Some rest => add_cvalues v rest
+  | v :: suite =>
+      match somValsCible suite with
+      | Some reste => additionCible v reste
       | None => None
       end
   end.
 
 (** Collecte les contributions d'un Allreduce prêt. *)
-Fixpoint allreduce_inputs
-  (x y : var) (g : global_config) : option (list cvalue) :=
+Fixpoint entreesRedTous
+  (x y : var) (g : configGlob) : option (list valCible) :=
   match g with
   | [] => Some []
-  | {| ls_store := sigma;
-       ls_kont := KCmd (CAllreduce x' y') :: _ |} :: tl =>
+  | {| elMem := sigma;
+       elCont := KCmd (CRedTous x' y') :: _ |} :: suite =>
       if andb (String.eqb x x') (String.eqb y y') then
-        match sigma x, allreduce_inputs x y tl with
-        | Some v, Some values => Some (v :: values)
+        match sigma x, entreesRedTous x y suite with
+        | Some v, Some vals => Some (v :: vals)
         | _, _ => None
         end
       else None
@@ -339,256 +334,246 @@ Fixpoint allreduce_inputs
   end.
 
 (** Termine un Allreduce avec sa valeur totale. *)
-Fixpoint allreduce_finish
-  (y : var) (total : cvalue) (g : global_config) : global_config :=
+Fixpoint finRedTous
+  (y : var) (total : valCible) (g : configGlob) : configGlob :=
   match g with
   | [] => []
-  | {| ls_store := sigma;
-       ls_kont := KCmd (CAllreduce _ _) :: k |} :: tl =>
-      {| ls_store := store_update sigma y total;
-         ls_kont := k |} ::
-      allreduce_finish y total tl
-  | state :: tl => state :: allreduce_finish y total tl
+  | {| elMem := sigma;
+       elCont := KCmd (CRedTous _ _) :: k |} :: suite =>
+      {| elMem := majMem sigma y total;
+         elCont := k |} ::
+      finRedTous y total suite
+  | etat :: suite => etat :: finRedTous y total suite
   end.
 
 (** Relation de transition petit pas globale. *)
-Inductive global_step : global_config -> global_config -> Prop :=
-| StepGlobal :
-    forall (q : global_config) s s' tl,
-      local_step s s' ->
-      global_step (List.app q (s :: tl)) (List.app q (s' :: tl))
-| StepAllreduce :
-    forall g x y values total,
-      allreduce_inputs x y g = Some values ->
-      cvalue_sum_list values = Some total ->
-      global_step g (allreduce_finish y total g).
+Inductive pasGlob : configGlob -> configGlob -> Prop :=
+| PasGlobal :
+    forall (q : configGlob) s s' suite,
+      pasLoc s s' ->
+      pasGlob (List.app q (s :: suite)) (List.app q (s' :: suite))
+| PasRedTous :
+    forall g x y vals total,
+      entreesRedTous x y g = Some vals ->
+      somValsCible vals = Some total ->
+      pasGlob g (finRedTous y total g).
 
 (** Clôture réflexive transitive des pas globaux. *)
-Definition global_steps : global_config -> global_config -> Prop :=
-  clos_refl_trans_1n global_config global_step.
-
-(** Lemmes génériques d'exécution. *)
+Definition suiteGlob : configGlob -> configGlob -> Prop :=
+  clos_refl_trans_1n configGlob pasGlob.
 
 (** Exécution complète d'une commande locale. *)
-Definition executes
-  (sigma : store) (c : cmd) (k : kont) (sigma' : store) : Prop :=
-  local_steps
-    {| ls_store := sigma; ls_kont := KCmd c :: k |}
-    {| ls_store := sigma'; ls_kont := k |}.
+Definition execLoc
+  (sigma : mem) (c : cmd) (k : cont) (sigma' : mem) : Prop :=
+  suiteLoc
+    {| elMem := sigma; elCont := KCmd c :: k |}
+    {| elMem := sigma'; elCont := k |}.
 
 (** Compose deux suites de pas locaux. *)
-Lemma local_steps_trans :
+Lemma transSuiteLoc :
   forall s1 s2 s3,
-    local_steps s1 s2 ->
-    local_steps s2 s3 ->
-    local_steps s1 s3.
+    suiteLoc s1 s2 ->
+    suiteLoc s2 s3 ->
+    suiteLoc s1 s3.
 Proof.
-  intros s1 s2 s3 H12. revert s3.
-  induction H12 as [|x y z Hxy Hyz IH]; intros s3 H23.
-  - exact H23.
-  - eapply rt1n_trans.
-    + exact Hxy.
-    + apply IH. exact H23.
+  unfold suiteLoc. intros x y z Hxy. revert z.
+  induction Hxy; intros; eauto using rt1n_trans.
 Qed.
 
 (** Compose deux suites de pas globaux. *)
-Lemma global_steps_trans :
+Lemma transSuiteGlob :
   forall g1 g2 g3,
-    global_steps g1 g2 ->
-    global_steps g2 g3 ->
-    global_steps g1 g3.
+    suiteGlob g1 g2 ->
+    suiteGlob g2 g3 ->
+    suiteGlob g1 g3.
 Proof.
-  intros g1 g2 g3 H12. revert g3.
-  induction H12 as [|x y z Hxy Hyz IH]; intros g3 H23.
-  - exact H23.
-  - eapply rt1n_trans.
-    + exact Hxy.
-    + apply IH. exact H23.
+  unfold suiteGlob. intros x y z Hxy. revert z.
+  induction Hxy; intros; eauto using rt1n_trans.
 Qed.
 
-(** Exécute correctement la commande vide. *)
-Lemma executes_skip :
-  forall sigma k, executes sigma CSkip k sigma.
+(** Exécute la commande vide. *)
+Lemma execRien :
+  forall sigma k, execLoc sigma CRien k sigma.
 Proof.
-  intros sigma k. unfold executes, local_steps.
+  intros sigma k. unfold execLoc, suiteLoc.
   eapply rt1n_trans.
-  - apply StepSkip.
+  - apply PasRien.
   - constructor.
 Qed.
 
-(** Exécute correctement une affectation. *)
-Lemma executes_assign :
+(** Exécute une affectation. *)
+Lemma execAffect :
   forall sigma k x a v,
-    aeval sigma a = Some v ->
-    executes sigma (CAssign x a) k (store_update sigma x v).
+    evalCible sigma a = Some v ->
+    execLoc sigma (CAffect x a) k (majMem sigma x v).
 Proof.
-  intros sigma k x a v Heval. unfold executes, local_steps.
+  intros sigma k x a v Heval. unfold execLoc, suiteLoc.
   eapply rt1n_trans.
-  - apply StepAssign. exact Heval.
+  - apply PasAffect. exact Heval.
   - eapply rt1n_trans.
-    + apply StepSkip.
+    + apply PasRien.
     + constructor.
 Qed.
 
 (** Compose l'exécution de deux commandes séquentielles. *)
-Lemma executes_seq :
+Lemma execSeq :
   forall sigma sigma1 sigma2 c1 c2 k,
-    executes sigma c1 (KCmd c2 :: k) sigma1 ->
-    executes sigma1 c2 k sigma2 ->
-    executes sigma (CSeq c1 c2) k sigma2.
+    execLoc sigma c1 (KCmd c2 :: k) sigma1 ->
+    execLoc sigma1 c2 k sigma2 ->
+    execLoc sigma (CSeq c1 c2) k sigma2.
 Proof.
   intros sigma sigma1 sigma2 c1 c2 k H1 H2.
-  unfold executes in *. eapply local_steps_trans.
-  - unfold local_steps. eapply rt1n_trans.
-    + apply StepSeq.
+  unfold execLoc in *. eapply transSuiteLoc.
+  - unfold suiteLoc. eapply rt1n_trans.
+    + apply PasSeq.
     + exact H1.
   - exact H2.
 Qed.
 
 (** Exécute le nettoyage d'une liste de variables. *)
-Lemma executes_del :
+Lemma execEff :
   forall sigma xs k,
-    local_steps
-      {| ls_store := sigma; ls_kont := KDel xs :: k |}
-      {| ls_store := store_remove sigma xs; ls_kont := k |}.
+    suiteLoc
+      {| elMem := sigma; elCont := KEff xs :: k |}
+      {| elMem := effMem sigma xs; elCont := k |}.
 Proof.
-  intros sigma xs k. unfold local_steps.
+  intros sigma xs k. unfold suiteLoc.
   eapply rt1n_trans.
-  - apply StepDel.
+  - apply PasEff.
   - constructor.
 Qed.
 
 (** Exécute la branche vraie d'une condition. *)
-Lemma executes_if_true :
-  forall sigma sigma' test then_cleanup then_branch
-    else_cleanup else_branch k,
-    aeval sigma test = Some (CVBool true) ->
-    executes sigma then_branch (KDel then_cleanup :: k) sigma' ->
-    executes sigma
-      (CIf test then_cleanup then_branch else_cleanup else_branch)
-      k (store_remove sigma' then_cleanup).
+Lemma execSiVrai :
+  forall sigma sigma' test netVrai brancheVraie
+    netFaux brancheFausse k,
+    evalCible sigma test = Some (VCBool true) ->
+    execLoc sigma brancheVraie (KEff netVrai :: k) sigma' ->
+    execLoc sigma
+      (CSi test netVrai brancheVraie netFaux brancheFausse)
+      k (effMem sigma' netVrai).
 Proof.
-  intros sigma sigma' test then_cleanup then_branch
-    else_cleanup else_branch k Htest Hbranch.
-  unfold executes in *. eapply local_steps_trans.
-  - unfold local_steps. eapply rt1n_trans.
-    + apply StepIfTrue. exact Htest.
-    + exact Hbranch.
-  - apply executes_del.
+  intros sigma sigma' test netVrai brancheVraie
+    netFaux brancheFausse k Htest Hbranche.
+  unfold execLoc in *. eapply transSuiteLoc.
+  - unfold suiteLoc. eapply rt1n_trans.
+    + apply PasSiVrai. exact Htest.
+    + exact Hbranche.
+  - apply execEff.
 Qed.
 
 (** Exécute la branche fausse d'une condition. *)
-Lemma executes_if_false :
-  forall sigma sigma' test then_cleanup then_branch
-    else_cleanup else_branch k,
-    aeval sigma test = Some (CVBool false) ->
-    executes sigma else_branch (KDel else_cleanup :: k) sigma' ->
-    executes sigma
-      (CIf test then_cleanup then_branch else_cleanup else_branch)
-      k (store_remove sigma' else_cleanup).
+Lemma execSiFaux :
+  forall sigma sigma' test netVrai brancheVraie
+    netFaux brancheFausse k,
+    evalCible sigma test = Some (VCBool false) ->
+    execLoc sigma brancheFausse (KEff netFaux :: k) sigma' ->
+    execLoc sigma
+      (CSi test netVrai brancheVraie netFaux brancheFausse)
+      k (effMem sigma' netFaux).
 Proof.
-  intros sigma sigma' test then_cleanup then_branch
-    else_cleanup else_branch k Htest Hbranch.
-  unfold executes in *. eapply local_steps_trans.
-  - unfold local_steps. eapply rt1n_trans.
-    + apply StepIfFalse. exact Htest.
-    + exact Hbranch.
-  - apply executes_del.
+  intros sigma sigma' test netVrai brancheVraie
+    netFaux brancheFausse k Htest Hbranche.
+  unfold execLoc in *. eapply transSuiteLoc.
+  - unfold suiteLoc. eapply rt1n_trans.
+    + apply PasSiFaux. exact Htest.
+    + exact Hbranche.
+  - apply execEff.
 Qed.
 
 (** Exécute l'initialisation d'une boucle. *)
-Lemma executes_for_init :
-  forall sigma sigma' init test step cleanup body k,
-    init <> CSkip ->
-    executes sigma init
-      (KCmd (CFor CSkip test step cleanup body) :: k) sigma' ->
-    local_steps
-      {| ls_store := sigma;
-         ls_kont := KCmd (CFor init test step cleanup body) :: k |}
-      {| ls_store := sigma';
-         ls_kont := KCmd (CFor CSkip test step cleanup body) :: k |}.
+Lemma execPourInit :
+  forall sigma sigma' init test etape net corps k,
+    init <> CRien ->
+    execLoc sigma init
+      (KCmd (CPour CRien test etape net corps) :: k) sigma' ->
+    suiteLoc
+      {| elMem := sigma;
+         elCont := KCmd (CPour init test etape net corps) :: k |}
+      {| elMem := sigma';
+         elCont := KCmd (CPour CRien test etape net corps) :: k |}.
 Proof.
-  intros sigma sigma' init test step cleanup body k Hinit Hexec.
-  unfold executes in Hexec. unfold local_steps.
+  intros sigma sigma' init test etape net corps k Hinit Hexec.
+  unfold execLoc in Hexec. unfold suiteLoc.
   eapply rt1n_trans.
-  - apply StepForInit. exact Hinit.
+  - apply PasPourInit. exact Hinit.
   - exact Hexec.
 Qed.
 
 (** Termine une boucle dont le test est faux. *)
-Lemma executes_for_false :
-  forall sigma test step cleanup body k,
-    aeval sigma test = Some (CVBool false) ->
-    executes sigma (CFor CSkip test step cleanup body) k sigma.
+Lemma execPourFin :
+  forall sigma test etape net corps k,
+    evalCible sigma test = Some (VCBool false) ->
+    execLoc sigma (CPour CRien test etape net corps) k sigma.
 Proof.
-  intros sigma test step cleanup body k Htest.
-  unfold executes, local_steps.
+  intros sigma test etape net corps k Htest.
+  unfold execLoc, suiteLoc.
   eapply rt1n_trans.
-  - apply StepForFalse. exact Htest.
+  - apply PasPourFin. exact Htest.
   - eapply rt1n_trans.
-    + apply StepSkip.
+    + apply PasRien.
     + constructor.
 Qed.
 
 (** Compose une itération complète de boucle. *)
-Lemma executes_for_iteration :
+Lemma execPourIter :
   forall sigma sigma1 sigma2 sigma3 sigma4
-    test step cleanup body k,
-    aeval sigma test = Some (CVBool true) ->
-    executes sigma body
-      (KDel cleanup :: KCmd step ::
-       KCmd (CFor CSkip test step cleanup body) :: k) sigma1 ->
-    local_steps
-      {| ls_store := sigma1;
-         ls_kont :=
-           KDel cleanup :: KCmd step ::
-           KCmd (CFor CSkip test step cleanup body) :: k |}
-      {| ls_store := sigma2;
-         ls_kont :=
-           KCmd step ::
-           KCmd (CFor CSkip test step cleanup body) :: k |} ->
-    executes sigma2 step
-      (KCmd (CFor CSkip test step cleanup body) :: k) sigma3 ->
-    executes sigma3
-      (CFor CSkip test step cleanup body) k sigma4 ->
-    executes sigma
-      (CFor CSkip test step cleanup body) k sigma4.
+    test etape net corps k,
+    evalCible sigma test = Some (VCBool true) ->
+    execLoc sigma corps
+      (KEff net :: KCmd etape ::
+       KCmd (CPour CRien test etape net corps) :: k) sigma1 ->
+    suiteLoc
+      {| elMem := sigma1;
+         elCont :=
+           KEff net :: KCmd etape ::
+           KCmd (CPour CRien test etape net corps) :: k |}
+      {| elMem := sigma2;
+         elCont :=
+           KCmd etape ::
+           KCmd (CPour CRien test etape net corps) :: k |} ->
+    execLoc sigma2 etape
+      (KCmd (CPour CRien test etape net corps) :: k) sigma3 ->
+    execLoc sigma3
+      (CPour CRien test etape net corps) k sigma4 ->
+    execLoc sigma
+      (CPour CRien test etape net corps) k sigma4.
 Proof.
   intros sigma sigma1 sigma2 sigma3 sigma4
-    test step cleanup body k Htest Hbody Hdel Hstep Hloop.
-  unfold executes in *. eapply local_steps_trans.
-  - unfold local_steps. eapply rt1n_trans.
-    + apply StepForTrue. exact Htest.
-    + exact Hbody.
-  - eapply local_steps_trans; [exact Hdel |].
-    eapply local_steps_trans; [exact Hstep | exact Hloop].
+    test etape net corps k Htest Hcorps Heff Hpas Hboucle.
+  unfold execLoc in *. eapply transSuiteLoc.
+  - unfold suiteLoc. eapply rt1n_trans.
+    + apply PasPourIter. exact Htest.
+    + exact Hcorps.
+  - eapply transSuiteLoc; [exact Heff |].
+    eapply transSuiteLoc; [exact Hpas | exact Hboucle].
 Qed.
 
 (** Exécute les trois premières commandes d'une séquence. *)
-Lemma local_steps_seq_prefix3 :
+Lemma execPrefixeSeq3 :
   forall sigma sigma1 sigma2 sigma3 c1 c2 c3 c4 k,
-    executes sigma c1
+    execLoc sigma c1
       (KCmd (CSeq c2 (CSeq c3 c4)) :: k) sigma1 ->
-    executes sigma1 c2
+    execLoc sigma1 c2
       (KCmd (CSeq c3 c4) :: k) sigma2 ->
-    executes sigma2 c3 (KCmd c4 :: k) sigma3 ->
-    local_steps
-      {| ls_store := sigma;
-         ls_kont := KCmd (CSeq c1 (CSeq c2 (CSeq c3 c4))) :: k |}
-      {| ls_store := sigma3; ls_kont := KCmd c4 :: k |}.
+    execLoc sigma2 c3 (KCmd c4 :: k) sigma3 ->
+    suiteLoc
+      {| elMem := sigma;
+         elCont := KCmd (CSeq c1 (CSeq c2 (CSeq c3 c4))) :: k |}
+      {| elMem := sigma3; elCont := KCmd c4 :: k |}.
 Proof.
   intros sigma sigma1 sigma2 sigma3 c1 c2 c3 c4 k
-    Hfirst Hsecond Hthird.
-  unfold executes in *.
-  eapply local_steps_trans.
-  - unfold local_steps. eapply rt1n_trans.
-    + apply StepSeq.
-    + exact Hfirst.
-  - eapply local_steps_trans.
-    + unfold local_steps. eapply rt1n_trans.
-      * apply StepSeq.
-      * exact Hsecond.
-    + unfold local_steps. eapply rt1n_trans.
-      * apply StepSeq.
-      * exact Hthird.
+    Hpremier Hdeuxieme Htroisieme.
+  unfold execLoc in *.
+  eapply transSuiteLoc.
+  - unfold suiteLoc. eapply rt1n_trans.
+    + apply PasSeq.
+    + exact Hpremier.
+  - eapply transSuiteLoc.
+    + unfold suiteLoc. eapply rt1n_trans.
+      * apply PasSeq.
+      * exact Hdeuxieme.
+    + unfold suiteLoc. eapply rt1n_trans.
+      * apply PasSeq.
+      * exact Htroisieme.
 Qed.

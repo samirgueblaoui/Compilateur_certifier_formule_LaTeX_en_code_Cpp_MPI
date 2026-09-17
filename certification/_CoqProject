@@ -1,4 +1,4 @@
--Q . Certification2
+-Q . certification
 C00_Source.v
 C01_TargetCompiler.v
 C02_SmallStep.v
@@ -8,4 +8,7 @@ C05_LocalCorrectness.v
 C06_GlobalExecution.v
 C07_SumParSimple.v
 C08_Correctness.v
+C09_FormulaDeterminism.v
+C10_ProgramDeterminism.v
+C11_Equivalence.v
 All.v

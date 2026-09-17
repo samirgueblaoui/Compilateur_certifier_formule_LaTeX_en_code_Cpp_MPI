@@ -15,312 +15,300 @@ Open Scope R_scope.
 Definition var := string.
 
 (** Types numériques du langage source. *)
-Inductive ty : Type :=
-| TInt
-| TFloat.
+Inductive typeNum : Type :=
+| TEnt
+| TFlot.
 
 (** Valeurs produites par la sémantique source. *)
-Inductive value : Type :=
-| VInt : Z -> value
-| VFloat : R -> value.
+Inductive val : Type :=
+| VEnt : Z -> val
+| VFlot : R -> val.
 
 (** Relation entre une valeur source et son type. *)
-Definition value_has_type (v : value) (t : ty) : Prop :=
+Definition valTypee (v : val) (t : typeNum) : Prop :=
   match v, t with
-  | VInt _, TInt | VFloat _, TFloat => True
+  | VEnt _, TEnt | VFlot _, TFlot => True
   | _, _ => False
   end.
 
 (** Valeurs manipulées par la machine cible. *)
-Inductive cvalue : Type :=
-| CVInt : Z -> cvalue
-| CVFloat : R -> cvalue
-| CVBool : bool -> cvalue.
+Inductive valCible : Type :=
+| VCEnt : Z -> valCible
+| VCFlot : R -> valCible
+| VCBool : bool -> valCible.
 
-(** Type abstrait des opérateurs unaires. *)
-Parameter unary_op : Type.
-(** Type abstrait des opérateurs binaires primitifs. *)
-Parameter primitive_binary_op : Type.
+Parameter opUn : Type.
+Parameter opBinPrim : Type.
 
-(** Sémantique source des opérateurs unaires. *)
-Parameter unary_source_sem : unary_op -> value -> value.
-(** Sémantique cible des opérateurs unaires. *)
-Parameter unary_target_sem : unary_op -> value -> value.
-(** Sémantique source des opérateurs binaires primitifs. *)
-Parameter binary_source_sem :
-  primitive_binary_op -> value -> value -> value.
-(** Sémantique cible des opérateurs binaires primitifs. *)
-Parameter binary_target_sem :
-  primitive_binary_op -> value -> value -> value.
+Parameter semUnSrc : opUn -> val -> val.
+Parameter semUnCible : opUn -> val -> val.
+Parameter semBinSrc :
+  opBinPrim -> val -> val -> val.
+Parameter semBinCible :
+  opBinPrim -> val -> val -> val.
 
 (** Environnement de typage des variables. *)
-Definition tyenv := var -> option ty.
+Definition envTypes := var -> option typeNum.
 (** Environnement d'exécution du langage source. *)
-Definition env := var -> option value.
+Definition env := var -> option val.
 (** Mémoire locale de la machine cible. *)
-Definition store := var -> option cvalue.
+Definition mem := var -> option valCible.
 
-(** Signatures de type des opérateurs unaires. *)
-Definition unary_sig_env := unary_op -> ty -> option ty.
-(** Signatures de type des opérateurs binaires. *)
-Definition binary_sig_env :=
-  primitive_binary_op -> ty -> ty -> option ty.
+Definition envSigsUn := opUn -> typeNum -> option typeNum.
+Definition envSigsBin :=
+  opBinPrim -> typeNum -> typeNum -> option typeNum.
 
-(** Formes possibles d'une opération binaire source. *)
-Inductive binary_form : Type :=
-| BAdd
-| BMul
-| BPrimitive : primitive_binary_op -> binary_form.
+(** Formes possibles d'une opération binaire. *)
+Inductive formeBin : Type :=
+| BPlus
+| BMult
+| BPrim : opBinPrim -> formeBin.
 
 (** Syntaxe des expressions du langage source. *)
 Inductive expr : Type :=
-| EConstInt : Z -> expr
-| EConstFloat : R -> expr
+| ECstEnt : Z -> expr
+| ECstFlot : R -> expr
 | EVar : var -> expr
-| EUnary : unary_op -> expr -> expr
-| EBinaryForm : binary_form -> expr -> expr -> expr
-| ESumSeq : var -> expr -> expr -> expr -> expr
-| ESumPar : var -> expr -> expr -> expr -> expr.
+| EUn : opUn -> expr -> expr
+| EBin : formeBin -> expr -> expr -> expr
+| ESomSeq : var -> expr -> expr -> expr -> expr
+| ESomPar : var -> expr -> expr -> expr -> expr.
 
-(** Constructeur dérivé de l'addition source. *)
-Definition EAdd (e1 e2 : expr) : expr :=
-  EBinaryForm BAdd e1 e2.
+Definition EPlus (e1 e2 : expr) : expr :=
+  EBin BPlus e1 e2.
 
-(** Constructeur dérivé de la multiplication source. *)
-Definition EMul (e1 e2 : expr) : expr :=
-  EBinaryForm BMul e1 e2.
+Definition EMult (e1 e2 : expr) : expr :=
+  EBin BMult e1 e2.
 
-(** Constructeur dérivé d'une primitive binaire. *)
-Definition EBinary (op : primitive_binary_op) (e1 e2 : expr) : expr :=
-  EBinaryForm (BPrimitive op) e1 e2.
+Definition EPrimBin (op : opBinPrim) (e1 e2 : expr) : expr :=
+  EBin (BPrim op) e1 e2.
 
 (** Type obtenu par promotion de deux types numériques. *)
-Definition promote_ty (t1 t2 : ty) : ty :=
+Definition promouvoir (t1 t2 : typeNum) : typeNum :=
   match t1, t2 with
-  | TInt, TInt => TInt
-  | _, _ => TFloat
+  | TEnt, TEnt => TEnt
+  | _, _ => TFlot
   end.
 
 (** Calcule le type résultat d'une opération binaire. *)
-Definition binary_result_type
-  (B : binary_sig_env) (op : binary_form) (t1 t2 : ty) : ty :=
+Definition typeResBin
+  (B : envSigsBin) (op : formeBin) (t1 t2 : typeNum) : typeNum :=
   match op with
-  | BAdd | BMul => promote_ty t1 t2
-  | BPrimitive f =>
+  | BPlus | BMult => promouvoir t1 t2
+  | BPrim f =>
       match B f t1 t2 with
       | Some t => t
-      | None => promote_ty t1 t2
+      | None => promouvoir t1 t2
       end
   end.
 
 (** Vérifie la cohérence d'une signature binaire. *)
-Definition binary_signature_valid
-  (B : binary_sig_env) (op : binary_form) (t1 t2 : ty) : Prop :=
+Definition sigBinValide
+  (B : envSigsBin) (op : formeBin) (t1 t2 : typeNum) : Prop :=
   match op with
-  | BPrimitive f => exists tout, B f t1 t2 = Some tout
-  | BAdd | BMul => True
+  | BPrim f => exists tSortie, B f t1 t2 = Some tSortie
+  | BPlus | BMult => True
   end.
 
 (** Calcule le type résultat d'une opération unaire. *)
-Definition unary_result_type
-  (U : unary_sig_env) (op : unary_op) (t : ty) : ty :=
+Definition typeResUn
+  (U : envSigsUn) (op : opUn) (t : typeNum) : typeNum :=
   match U op t with
-  | Some tout => tout
+  | Some tSortie => tSortie
   | None => t
   end.
 
 (** Valeur nulle associée à un type numérique. *)
-Definition zero_value (t : ty) : value :=
+Definition valNulle (t : typeNum) : val :=
   match t with
-  | TInt => VInt 0
-  | TFloat => VFloat 0
+  | TEnt => VEnt 0
+  | TFlot => VFlot 0
   end.
 
 (** Addition de deux valeurs source. *)
-Definition add_values (v1 v2 : value) : value :=
+Definition additionVals (v1 v2 : val) : val :=
   match v1, v2 with
-  | VInt n1, VInt n2 => VInt (n1 + n2)
-  | VInt n1, VFloat r2 => VFloat (IZR n1 + r2)
-  | VFloat r1, VInt n2 => VFloat (r1 + IZR n2)
-  | VFloat r1, VFloat r2 => VFloat (r1 + r2)
+  | VEnt n1, VEnt n2 => VEnt (n1 + n2)
+  | VEnt n1, VFlot r2 => VFlot (IZR n1 + r2)
+  | VFlot r1, VEnt n2 => VFlot (r1 + IZR n2)
+  | VFlot r1, VFlot r2 => VFlot (r1 + r2)
   end.
 
 (** Multiplication de deux valeurs source. *)
-Definition mul_values (v1 v2 : value) : value :=
+Definition multVals (v1 v2 : val) : val :=
   match v1, v2 with
-  | VInt n1, VInt n2 => VInt (n1 * n2)
-  | VInt n1, VFloat r2 => VFloat (IZR n1 * r2)
-  | VFloat r1, VInt n2 => VFloat (r1 * IZR n2)
-  | VFloat r1, VFloat r2 => VFloat (r1 * r2)
+  | VEnt n1, VEnt n2 => VEnt (n1 * n2)
+  | VEnt n1, VFlot r2 => VFlot (IZR n1 * r2)
+  | VFlot r1, VEnt n2 => VFlot (r1 * IZR n2)
+  | VFlot r1, VFlot r2 => VFlot (r1 * r2)
   end.
 
 (** Interprétation source d'une forme binaire. *)
-Definition binary_source_value
-  (op : binary_form) (v1 v2 : value) : value :=
+Definition valBinSrc
+  (op : formeBin) (v1 v2 : val) : val :=
   match op with
-  | BAdd => add_values v1 v2
-  | BMul => mul_values v1 v2
-  | BPrimitive f => binary_source_sem f v1 v2
+  | BPlus => additionVals v1 v2
+  | BMult => multVals v1 v2
+  | BPrim f => semBinSrc f v1 v2
   end.
 
 (** Interprétation cible d'une forme binaire. *)
-Definition binary_target_value
-  (op : binary_form) (v1 v2 : value) : value :=
+Definition valBinCible
+  (op : formeBin) (v1 v2 : val) : val :=
   match op with
-  | BAdd => add_values v1 v2
-  | BMul => mul_values v1 v2
-  | BPrimitive f => binary_target_sem f v1 v2
+  | BPlus => additionVals v1 v2
+  | BMult => multVals v1 v2
+  | BPrim f => semBinCible f v1 v2
   end.
 
 (** Étend un contexte de typage par un entier. *)
-Definition gamma_bind_int (Gamma : tyenv) (x : var) : tyenv :=
-  fun y => if String.eqb y x then Some TInt else Gamma y.
+Definition lierTypeEnt (Gamma : envTypes) (x : var) : envTypes :=
+  fun y => if String.eqb y x then Some TEnt else Gamma y.
 
 (** Met à jour une variable de l'environnement source. *)
-Definition env_update (rho : env) (x : var) (v : value) : env :=
+Definition majEnv (rho : env) (x : var) (v : val) : env :=
   fun y => if String.eqb y x then Some v else rho y.
 
 (** Jugement de typage des expressions source. *)
-Inductive has_type
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  : expr -> ty -> Prop :=
-| TyConstInt :
-    forall n, has_type Gamma U B (EConstInt n) TInt
-| TyConstFloat :
-    forall r, has_type Gamma U B (EConstFloat r) TFloat
+Inductive bienType
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  : expr -> typeNum -> Prop :=
+| TyCstEnt :
+    forall n, bienType Gamma U B (ECstEnt n) TEnt
+| TyCstFlot :
+    forall r, bienType Gamma U B (ECstFlot r) TFlot
 | TyVar :
     forall x t,
       Gamma x = Some t ->
-      has_type Gamma U B (EVar x) t
-| TyUnary :
-    forall op e tin tout,
-      has_type Gamma U B e tin ->
-      U op tin = Some tout ->
-      has_type Gamma U B (EUnary op e) tout
-| TyBinary :
+      bienType Gamma U B (EVar x) t
+| TyUn :
+    forall op e tEntree tSortie,
+      bienType Gamma U B e tEntree ->
+      U op tEntree = Some tSortie ->
+      bienType Gamma U B (EUn op e) tSortie
+| TyBin :
     forall op e1 e2 t1 t2,
-      has_type Gamma U B e1 t1 ->
-      has_type Gamma U B e2 t2 ->
-      binary_signature_valid B op t1 t2 ->
-      has_type Gamma U B
-        (EBinaryForm op e1 e2)
-        (binary_result_type B op t1 t2)
-| TySumSeq :
-    forall i a b body tbody,
-      has_type Gamma U B a TInt ->
-      has_type Gamma U B b TInt ->
-      has_type (gamma_bind_int Gamma i) U B body tbody ->
-      has_type Gamma U B (ESumSeq i a b body) tbody
-| TySumPar :
-    forall i a b body tbody,
-      has_type Gamma U B a TInt ->
-      has_type Gamma U B b TInt ->
-      has_type (gamma_bind_int Gamma i) U B body tbody ->
-      has_type Gamma U B (ESumPar i a b body) tbody.
+      bienType Gamma U B e1 t1 ->
+      bienType Gamma U B e2 t2 ->
+      sigBinValide B op t1 t2 ->
+      bienType Gamma U B
+        (EBin op e1 e2)
+        (typeResBin B op t1 t2)
+| TySomSeq :
+    forall i a b corps tCorps,
+      bienType Gamma U B a TEnt ->
+      bienType Gamma U B b TEnt ->
+      bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+      bienType Gamma U B (ESomSeq i a b corps) tCorps
+| TySomPar :
+    forall i a b corps tCorps,
+      bienType Gamma U B a TEnt ->
+      bienType Gamma U B b TEnt ->
+      bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+      bienType Gamma U B (ESomPar i a b corps) tCorps.
 
 (** Sémantique grand pas mutuelle des expressions et des sommes. *)
-Inductive eval_expr
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  : env -> expr -> ty -> value -> Prop :=
-| EvalConstInt :
+Inductive evalExpr
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  : env -> expr -> typeNum -> val -> Prop :=
+| EvalCstEnt :
     forall rho n,
-      eval_expr Gamma U B rho (EConstInt n) TInt (VInt n)
-| EvalConstFloat :
+      evalExpr Gamma U B rho (ECstEnt n) TEnt (VEnt n)
+| EvalCstFlot :
     forall rho r,
-      eval_expr Gamma U B rho (EConstFloat r) TFloat (VFloat r)
+      evalExpr Gamma U B rho (ECstFlot r) TFlot (VFlot r)
 | EvalVar :
     forall rho x t v,
       Gamma x = Some t ->
       rho x = Some v ->
-      value_has_type v t ->
-      eval_expr Gamma U B rho (EVar x) t v
-| EvalUnary :
-    forall rho op e tin tout v,
-      eval_expr Gamma U B rho e tin v ->
-      U op tin = Some tout ->
-      value_has_type (unary_source_sem op v) tout ->
-      eval_expr Gamma U B rho (EUnary op e) tout
-        (unary_source_sem op v)
-| EvalBinary :
+      valTypee v t ->
+      evalExpr Gamma U B rho (EVar x) t v
+| EvalUn :
+    forall rho op e tEntree tSortie v,
+      evalExpr Gamma U B rho e tEntree v ->
+      U op tEntree = Some tSortie ->
+      valTypee (semUnSrc op v) tSortie ->
+      evalExpr Gamma U B rho (EUn op e) tSortie
+        (semUnSrc op v)
+| EvalBin :
     forall rho op e1 e2 t1 t2 v1 v2,
-      eval_expr Gamma U B rho e1 t1 v1 ->
-      eval_expr Gamma U B rho e2 t2 v2 ->
-      binary_signature_valid B op t1 t2 ->
-      value_has_type
-        (binary_source_value op v1 v2)
-        (binary_result_type B op t1 t2) ->
-      eval_expr Gamma U B rho
-        (EBinaryForm op e1 e2)
-        (binary_result_type B op t1 t2)
-        (binary_source_value op v1 v2)
-| EvalSumSeq :
-    forall rho i a b body m n tbody v,
-      eval_expr Gamma U B rho a TInt (VInt m) ->
-      eval_expr Gamma U B rho b TInt (VInt n) ->
-      has_type (gamma_bind_int Gamma i) U B body tbody ->
-      eval_sum Gamma U B rho i m n body tbody v ->
-      eval_expr Gamma U B rho (ESumSeq i a b body) tbody v
-| EvalSumPar :
-    forall rho i a b body m n tbody v,
-      eval_expr Gamma U B rho a TInt (VInt m) ->
-      eval_expr Gamma U B rho b TInt (VInt n) ->
-      has_type (gamma_bind_int Gamma i) U B body tbody ->
-      eval_sum Gamma U B rho i m n body tbody v ->
-      eval_expr Gamma U B rho (ESumPar i a b body) tbody v
+      evalExpr Gamma U B rho e1 t1 v1 ->
+      evalExpr Gamma U B rho e2 t2 v2 ->
+      sigBinValide B op t1 t2 ->
+      valTypee
+        (valBinSrc op v1 v2)
+        (typeResBin B op t1 t2) ->
+      evalExpr Gamma U B rho
+        (EBin op e1 e2)
+        (typeResBin B op t1 t2)
+        (valBinSrc op v1 v2)
+| EvalSomSeq :
+    forall rho i a b corps m n tCorps v,
+      evalExpr Gamma U B rho a TEnt (VEnt m) ->
+      evalExpr Gamma U B rho b TEnt (VEnt n) ->
+      bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+      evalSom Gamma U B rho i m n corps tCorps v ->
+      evalExpr Gamma U B rho (ESomSeq i a b corps) tCorps v
+| EvalSomPar :
+    forall rho i a b corps m n tCorps v,
+      evalExpr Gamma U B rho a TEnt (VEnt m) ->
+      evalExpr Gamma U B rho b TEnt (VEnt n) ->
+      bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+      evalSom Gamma U B rho i m n corps tCorps v ->
+      evalExpr Gamma U B rho (ESomPar i a b corps) tCorps v
 
-with eval_sum
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  : env -> var -> Z -> Z -> expr -> ty -> value -> Prop :=
-| EvalSumEmpty :
-    forall rho i m n body tbody,
+with evalSom
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  : env -> var -> Z -> Z -> expr -> typeNum -> val -> Prop :=
+| EvalSomVide :
+    forall rho i m n corps tCorps,
       (n < m)%Z ->
-      eval_sum Gamma U B rho i m n body tbody (zero_value tbody)
-| EvalSumStep :
-    forall rho i m n body tbody v1 vrest,
+      evalSom Gamma U B rho i m n corps tCorps (valNulle tCorps)
+| EvalSomEtape :
+    forall rho i m n corps tCorps v1 vReste,
       (m <= n)%Z ->
-      eval_expr (gamma_bind_int Gamma i) U B
-        (env_update rho i (VInt m)) body tbody v1 ->
-      eval_sum Gamma U B rho i (m + 1) n body tbody vrest ->
-      eval_sum Gamma U B rho i m n body tbody
-        (add_values v1 vrest).
+      evalExpr (lierTypeEnt Gamma i) U B
+        (majEnv rho i (VEnt m)) corps tCorps v1 ->
+      evalSom Gamma U B rho i (m + 1) n corps tCorps vReste ->
+      evalSom Gamma U B rho i m n corps tCorps
+        (additionVals v1 vReste).
 
-(** Évaluation d'une tranche arithmétique de somme. *)
-Inductive eval_stride_sum
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (rho : env) (i : var) (body : expr) (tbody : ty)
-  (stride : Z) : Z -> Z -> value -> Prop :=
-| EvalStrideEmpty :
-    forall current upper,
-      (upper < current)%Z ->
-      eval_stride_sum Gamma U B rho i body tbody stride
-        current upper (zero_value tbody)
-| EvalStrideStep :
-    forall current upper vcurrent vrest,
-      (current <= upper)%Z ->
-      eval_expr (gamma_bind_int Gamma i) U B
-        (env_update rho i (VInt current)) body tbody vcurrent ->
-      eval_stride_sum Gamma U B rho i body tbody stride
-        (current + stride) upper vrest ->
-      eval_stride_sum Gamma U B rho i body tbody stride
-        current upper (add_values vcurrent vrest).
+Inductive evalSomPas
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (rho : env) (i : var) (corps : expr) (tCorps : typeNum)
+  (pas : Z) : Z -> Z -> val -> Prop :=
+| EvalPasVide :
+    forall courant bSup,
+      (bSup < courant)%Z ->
+      evalSomPas Gamma U B rho i corps tCorps pas
+        courant bSup (valNulle tCorps)
+| EvalPasEtape :
+    forall courant bSup vCourant vReste,
+      (courant <= bSup)%Z ->
+      evalExpr (lierTypeEnt Gamma i) U B
+        (majEnv rho i (VEnt courant)) corps tCorps vCourant ->
+      evalSomPas Gamma U B rho i corps tCorps pas
+        (courant + pas) bSup vReste ->
+      evalSomPas Gamma U B rho i corps tCorps pas
+        courant bSup (additionVals vCourant vReste).
 
-(** Compatibilité entre les primitives source et cible. *)
-Definition primitive_semantics_compatible
-  (_ : unary_sig_env) (_ : binary_sig_env) : Prop :=
+(** Compatibilité entre source et cible. *)
+Definition primCompat
+  (_ : envSigsUn) (_ : envSigsBin) : Prop :=
   (forall op v,
-      unary_target_sem op v = unary_source_sem op v) /\
+      semUnCible op v = semUnSrc op v) /\
   (forall op v1 v2,
-      binary_target_sem op v1 v2 = binary_source_sem op v1 v2).
+      semBinCible op v1 v2 = semBinSrc op v1 v2).
 
 (** Détecte la présence d'une somme parallèle. *)
-Fixpoint has_parallel_sum (e : expr) : bool :=
+Fixpoint contientSomPar (e : expr) : bool :=
   match e with
-  | EConstInt _ | EConstFloat _ | EVar _ => false
-  | EUnary _ e1 => has_parallel_sum e1
-  | EBinaryForm _ e1 e2 =>
-      orb (has_parallel_sum e1) (has_parallel_sum e2)
-  | ESumSeq _ a b body =>
-      orb (has_parallel_sum a)
-        (orb (has_parallel_sum b) (has_parallel_sum body))
-  | ESumPar _ _ _ _ => true
+  | ECstEnt _ | ECstFlot _ | EVar _ => false
+  | EUn _ e1 => contientSomPar e1
+  | EBin _ e1 e2 =>
+      orb (contientSomPar e1) (contientSomPar e2)
+  | ESomSeq _ a b corps =>
+      orb (contientSomPar a)
+        (orb (contientSomPar b) (contientSomPar corps))
+  | ESomPar _ _ _ _ => true
   end.

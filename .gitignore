@@ -9,12 +9,16 @@ Thumbs.db
 
 # CMake et artefacts C/C++
 /build/
+/build-*/
+/build_*/
 /cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 CTestTestfile.cmake
 compile_commands.json
+.ninja_deps
+.ninja_log
 install_manifest.txt
 *.o
 *.obj
@@ -79,7 +83,17 @@ pythontex-files-*/
 *.vio
 .*.aux
 .lia.cache
+.nia.cache
+.nra.cache
 .coq-native/
+
+# Makefiles et dependances generes par coq_makefile
+/certification/Makefile
+/certification/Makefile.conf
+/certification/.Makefile.d
+/certification/Makefile.coq
+/certification/Makefile.coq.conf
+/certification/.Makefile.coq.d
 
 # Configuration locale et secrets
 .env

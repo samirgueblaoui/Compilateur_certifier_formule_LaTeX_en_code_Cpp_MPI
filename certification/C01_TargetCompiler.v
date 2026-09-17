@@ -4,7 +4,7 @@ From Stdlib Require Import ZArith.ZArith.
 From Stdlib Require Import Reals.Reals.
 From Stdlib Require Import Relations.Relation_Operators.
 From Stdlib Require Import Lia.
-From Certification2 Require Export C00_Source.
+From certification Require Export C00_Source.
 
 Import ListNotations.
 Open Scope string_scope.
@@ -12,320 +12,319 @@ Open Scope Z_scope.
 Open Scope R_scope.
 
 (** Syntaxe des expressions de la machine cible. *)
-Inductive aexpr : Type :=
-| ANumInt : Z -> aexpr
-| ANumFloat : R -> aexpr
-| ABool : bool -> aexpr
-| AVar : var -> aexpr
-| AUnaryPrim : unary_op -> aexpr -> aexpr
-| AAdd : aexpr -> aexpr -> aexpr
-| AMul : aexpr -> aexpr -> aexpr
-| ASub : aexpr -> aexpr -> aexpr
-| AMod : aexpr -> aexpr -> aexpr
-| ABinaryPrim : primitive_binary_op -> aexpr -> aexpr -> aexpr
-| ALe : aexpr -> aexpr -> aexpr
-| AEq : aexpr -> aexpr -> aexpr
-| ANot : aexpr -> aexpr
-| AAnd : aexpr -> aexpr -> aexpr
-| ANbGroups : aexpr -> aexpr
-| AGroupSize : aexpr -> aexpr -> aexpr
-| AColor : aexpr -> aexpr -> aexpr -> aexpr
-| AChildRank : aexpr -> aexpr -> aexpr -> aexpr
-| AChildSize : aexpr -> aexpr -> aexpr -> aexpr.
+Inductive exprCible : Type :=
+| ACstEnt : Z -> exprCible
+| ACstFlot : R -> exprCible
+| ABool : bool -> exprCible
+| AVar : var -> exprCible
+| APrimUn : opUn -> exprCible -> exprCible
+| APlus : exprCible -> exprCible -> exprCible
+| AMult : exprCible -> exprCible -> exprCible
+| AMoins : exprCible -> exprCible -> exprCible
+| AMod : exprCible -> exprCible -> exprCible
+| APrimBin : opBinPrim -> exprCible -> exprCible -> exprCible
+| AInfEg : exprCible -> exprCible -> exprCible
+| AEg : exprCible -> exprCible -> exprCible
+| ANon : exprCible -> exprCible
+| AEt : exprCible -> exprCible -> exprCible
+| ANbGroupes : exprCible -> exprCible
+| ATailleGroupe : exprCible -> exprCible -> exprCible
+| ACouleur : exprCible -> exprCible -> exprCible -> exprCible
+| ARangEnfant : exprCible -> exprCible -> exprCible -> exprCible
+| ATailleEnfant : exprCible -> exprCible -> exprCible -> exprCible.
 
-(** Contexte utilisé pendant la compilation. *)
+(** Contexte *)
 Record ctx : Type := {
-  ctx_rank : var;
-  ctx_size : var;
-  ctx_active : aexpr;
-  ctx_level : nat;
-  ctx_repr : var -> var
+  ctxRang : var;
+  ctxNbProc : var;
+  ctxActif : exprCible;
+  ctxNiveau : nat;
+  ctxRepr : var -> var
 }.
 
-(** Contexte initial de compilation. *)
+(** Contexte initial *)
 Definition ctx0 : ctx :=
-  {| ctx_rank := "rank";
-     ctx_size := "size";
-     ctx_active := ABool true;
-     ctx_level := 0%nat;
-     ctx_repr := fun x => x |}.
+  {| ctxRang := "rang";
+     ctxNbProc := "nbProc";
+     ctxActif := ABool true;
+     ctxNiveau := 0%nat;
+     ctxRepr := fun x => x |}.
 
 (** Associe une variable source à une variable cible. *)
-Definition ctx_bind_var (c : ctx) (x z : var) : ctx :=
-  {| ctx_rank := ctx_rank c;
-     ctx_size := ctx_size c;
-     ctx_active := ctx_active c;
-     ctx_level := ctx_level c;
-     ctx_repr := fun y =>
-       if String.eqb y x then z else ctx_repr c y |}.
+Definition lierVarCtx (c : ctx) (x z : var) : ctx :=
+  {| ctxRang := ctxRang c;
+     ctxNbProc := ctxNbProc c;
+     ctxActif := ctxActif c;
+     ctxNiveau := ctxNiveau c;
+     ctxRepr := fun y =>
+       if String.eqb y x then z else ctxRepr c y |}.
 
 (** Construit le contexte d'un groupe enfant. *)
-Definition ctx_child
-  (c : ctx) (child_rank child_size color owner : var) : ctx :=
-  {| ctx_rank := child_rank;
-     ctx_size := child_size;
-     ctx_active :=
-       AAnd (ctx_active c) (AEq (AVar color) (AVar owner));
-     ctx_level := S (ctx_level c);
-     ctx_repr := ctx_repr c |}.
+Definition ctxEnfant
+  (c : ctx) (rangEnfant tailleEnfant couleur groupeResp : var) : ctx :=
+  {| ctxRang := rangEnfant;
+     ctxNbProc := tailleEnfant;
+     ctxActif :=
+       AEt (ctxActif c) (AEg (AVar couleur) (AVar groupeResp));
+     ctxNiveau := S (ctxNiveau c);
+     ctxRepr := ctxRepr c |}.
 
 (** Syntaxe des commandes de la machine cible. *)
 Inductive cmd : Type :=
-| CSkip
-| CAssign : var -> aexpr -> cmd
+| CRien
+| CAffect : var -> exprCible -> cmd
 | CSeq : cmd -> cmd -> cmd
-| CIf : aexpr -> list var -> cmd -> list var -> cmd -> cmd
-| CFor : cmd -> aexpr -> cmd -> list var -> cmd -> cmd
-| CAllreduce : var -> var -> cmd.
+| CSi : exprCible -> list var -> cmd -> list var -> cmd -> cmd
+| CPour : cmd -> exprCible -> cmd -> list var -> cmd -> cmd
+| CRedTous : var -> var -> cmd.
 
-(** Cadres stockés dans une continuation. *)
-Inductive frame : Type :=
-| KCmd : cmd -> frame
-| KDel : list var -> frame.
+Inductive cadre : Type :=
+| KCmd : cmd -> cadre
+| KEff : list var -> cadre.
 
 (** Pile de continuation d'un processus. *)
-Definition kont := list frame.
+Definition cont := list cadre.
 
 (** État local d'un processus cible. *)
-Record local_state : Type := {
-  ls_store : store;
-  ls_kont : kont
+Record etatLoc : Type := {
+  elMem : mem;
+  elCont : cont
 }.
 
 (** Configuration globale de tous les processus. *)
-Definition global_config := list local_state.
+Definition configGlob := list etatLoc.
 
 (** Code, résultat, type et fraîcheur produits par la compilation. *)
-Record compile_result : Type := {
-  cr_code : cmd;
-  cr_result : var;
-  cr_type : ty;
-  cr_next_fresh : nat
+Record resComp : Type := {
+  rcCode : cmd;
+  rcRes : var;
+  rcType : typeNum;
+  rcProchain : nat
 }.
 
 (** Encode un entier naturel dans un nom. *)
-Fixpoint nat_tag (n : nat) : string :=
+Fixpoint nomNat (n : nat) : string :=
   match n with
   | O => "0"
-  | S n' => "S" ++ nat_tag n'
+  | S n' => "S" ++ nomNat n'
   end.
 
 (** Construit le nom d'une variable temporaire. *)
-Definition temp_name (n : nat) : var :=
-  "tmp" ++ nat_tag n.
+Definition nomTemp (n : nat) : var :=
+  "tmp" ++ nomNat n.
 
 (** Expression cible représentant le zéro d'un type. *)
-Definition zero_aexpr (t : ty) : aexpr :=
+Definition exprNulle (t : typeNum) : exprCible :=
   match t with
-  | TInt => ANumInt 0
-  | TFloat => ANumFloat 0
+  | TEnt => ACstEnt 0
+  | TFlot => ACstFlot 0
   end.
 
 (** Met une liste de commandes en séquence. *)
-Fixpoint seq_list (cs : list cmd) : cmd :=
+Fixpoint seqCmds (cs : list cmd) : cmd :=
   match cs with
-  | [] => CSkip
+  | [] => CRien
   | [c] => c
-  | c :: tl => CSeq c (seq_list tl)
+  | c :: suite => CSeq c (seqCmds suite)
   end.
 
-(** Énumère une tranche de variables temporaires. *)
-Fixpoint temp_names_from (start len : nat) : list var :=
-  match len with
+(** Énumère variables temporaires. *)
+Fixpoint nomsTempDepuis (debut nb : nat) : list var :=
+  match nb with
   | O => []
-  | S len' => temp_name start :: temp_names_from (S start) len'
+  | S nb' => nomTemp debut :: nomsTempDepuis (S debut) nb'
   end.
 
 (** Énumère les temporaires entre deux indices. *)
-Definition temp_names_between (start stop : nat) : list var :=
-  temp_names_from start (stop - start).
+Definition nomsTempEntre (debut fin : nat) : list var :=
+  nomsTempDepuis debut (fin - debut).
 
 (** Traduit une opération binaire en expression cible. *)
-Definition binary_aexpr
-  (op : binary_form) (x y : var) : aexpr :=
+Definition exprBinCible
+  (op : formeBin) (x y : var) : exprCible :=
   match op with
-  | BAdd => AAdd (AVar x) (AVar y)
-  | BMul => AMul (AVar x) (AVar y)
-  | BPrimitive f => ABinaryPrim f (AVar x) (AVar y)
+  | BPlus => APlus (AVar x) (AVar y)
+  | BMult => AMult (AVar x) (AVar y)
+  | BPrim f => APrimBin f (AVar x) (AVar y)
   end.
 
 (** Compile récursivement une expression source. *)
-Fixpoint compile
-  (e : expr) (Gamma : tyenv)
-  (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (fresh : nat) : compile_result :=
+Fixpoint comp
+  (e : expr) (Gamma : envTypes)
+  (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (frais : nat) : resComp :=
   match e with
-  | EConstInt n =>
-      {| cr_code := CAssign (temp_name fresh) (ANumInt n);
-         cr_result := temp_name fresh;
-         cr_type := TInt;
-         cr_next_fresh := S fresh |}
-  | EConstFloat r =>
-      {| cr_code := CAssign (temp_name fresh) (ANumFloat r);
-         cr_result := temp_name fresh;
-         cr_type := TFloat;
-         cr_next_fresh := S fresh |}
+  | ECstEnt n =>
+      {| rcCode := CAffect (nomTemp frais) (ACstEnt n);
+         rcRes := nomTemp frais;
+         rcType := TEnt;
+         rcProchain := S frais |}
+  | ECstFlot r =>
+      {| rcCode := CAffect (nomTemp frais) (ACstFlot r);
+         rcRes := nomTemp frais;
+         rcType := TFlot;
+         rcProchain := S frais |}
   | EVar x =>
-      {| cr_code := CSkip;
-         cr_result := ctx_repr cctx x;
-         cr_type :=
+      {| rcCode := CRien;
+         rcRes := ctxRepr ctxComp x;
+         rcType :=
            match Gamma x with
            | Some t => t
-           | None => TInt
+           | None => TEnt
            end;
-         cr_next_fresh := fresh |}
-  | EUnary op e1 =>
-      let r1 := compile e1 Gamma U B cctx fresh in
-      let dst := temp_name (cr_next_fresh r1) in
-      {| cr_code :=
-           seq_list
-             [cr_code r1;
-              CAssign dst (AUnaryPrim op (AVar (cr_result r1)))];
-         cr_result := dst;
-         cr_type := unary_result_type U op (cr_type r1);
-         cr_next_fresh := S (cr_next_fresh r1) |}
-  | EBinaryForm op e1 e2 =>
-      let r1 := compile e1 Gamma U B cctx fresh in
+         rcProchain := frais |}
+  | EUn op e1 =>
+      let r1 := comp e1 Gamma U B ctxComp frais in
+      let dest := nomTemp (rcProchain r1) in
+      {| rcCode :=
+           seqCmds
+             [rcCode r1;
+              CAffect dest (APrimUn op (AVar (rcRes r1)))];
+         rcRes := dest;
+         rcType := typeResUn U op (rcType r1);
+         rcProchain := S (rcProchain r1) |}
+  | EBin op e1 e2 =>
+      let r1 := comp e1 Gamma U B ctxComp frais in
       let r2 :=
-        compile e2 Gamma U B cctx (cr_next_fresh r1) in
-      let dst := temp_name (cr_next_fresh r2) in
-      {| cr_code :=
-           seq_list
-             [cr_code r1;
-              cr_code r2;
-              CAssign dst
-                (binary_aexpr op (cr_result r1) (cr_result r2))];
-         cr_result := dst;
-         cr_type :=
-           binary_result_type B op (cr_type r1) (cr_type r2);
-         cr_next_fresh := S (cr_next_fresh r2) |}
-  | ESumSeq i a b body =>
-      let ra := compile a Gamma U B cctx fresh in
+        comp e2 Gamma U B ctxComp (rcProchain r1) in
+      let dest := nomTemp (rcProchain r2) in
+      {| rcCode :=
+           seqCmds
+             [rcCode r1;
+              rcCode r2;
+              CAffect dest
+                (exprBinCible op (rcRes r1) (rcRes r2))];
+         rcRes := dest;
+         rcType :=
+           typeResBin B op (rcType r1) (rcType r2);
+         rcProchain := S (rcProchain r2) |}
+  | ESomSeq i a b corps =>
+      let ra := comp a Gamma U B ctxComp frais in
       let rb :=
-        compile b Gamma U B cctx (cr_next_fresh ra) in
-      let acc := temp_name (cr_next_fresh rb) in
-      let idx := temp_name (S (cr_next_fresh rb)) in
-      let body_start := S (S (cr_next_fresh rb)) in
-      let body_ctx := ctx_bind_var cctx i idx in
+        comp b Gamma U B ctxComp (rcProchain ra) in
+      let acc := nomTemp (rcProchain rb) in
+      let ind := nomTemp (S (rcProchain rb)) in
+      let debutCorps := S (S (rcProchain rb)) in
+      let ctxCorps := lierVarCtx ctxComp i ind in
       let ru :=
-        compile body (gamma_bind_int Gamma i) U B
-          body_ctx body_start in
-      {| cr_code :=
-           seq_list
-             [cr_code ra;
-              cr_code rb;
-              CAssign acc (zero_aexpr (cr_type ru));
-              CFor
-                (CAssign idx (AVar (cr_result ra)))
-                (ALe (AVar idx) (AVar (cr_result rb)))
-                (CAssign idx (AAdd (AVar idx) (ANumInt 1)))
-                (temp_names_between body_start (cr_next_fresh ru))
-                (seq_list
-                   [cr_code ru;
-                    CAssign acc
-                      (AAdd (AVar acc) (AVar (cr_result ru)))])];
-         cr_result := acc;
-         cr_type := cr_type ru;
-         cr_next_fresh := cr_next_fresh ru |}
-  | ESumPar i a b body =>
-      let ra := compile a Gamma U B cctx fresh in
+        comp corps (lierTypeEnt Gamma i) U B
+          ctxCorps debutCorps in
+      {| rcCode :=
+           seqCmds
+             [rcCode ra;
+              rcCode rb;
+              CAffect acc (exprNulle (rcType ru));
+              CPour
+                (CAffect ind (AVar (rcRes ra)))
+                (AInfEg (AVar ind) (AVar (rcRes rb)))
+                (CAffect ind (APlus (AVar ind) (ACstEnt 1)))
+                (nomsTempEntre debutCorps (rcProchain ru))
+                (seqCmds
+                   [rcCode ru;
+                    CAffect acc
+                      (APlus (AVar acc) (AVar (rcRes ru)))])];
+         rcRes := acc;
+         rcType := rcType ru;
+         rcProchain := rcProchain ru |}
+  | ESomPar i a b corps =>
+      let ra := comp a Gamma U B ctxComp frais in
       let rb :=
-        compile b Gamma U B cctx (cr_next_fresh ra) in
-      let nf := cr_next_fresh rb in
-      if has_parallel_sum body then
-        let groups := temp_name nf in
-        let group_size := temp_name (S nf) in
-        let color := temp_name (S (S nf)) in
-        let child_rank := temp_name (S (S (S nf))) in
-        let child_size := temp_name (S (S (S (S nf)))) in
-        let owner := temp_name (S (S (S (S (S nf))))) in
-        let acc := temp_name (S (S (S (S (S (S nf)))))) in
-        let idx := temp_name (S (S (S (S (S (S (S nf))))))) in
-        let body_start := S (S (S (S (S (S (S (S nf))))))) in
-        let child :=
-          ctx_child cctx child_rank child_size color owner in
-        let body_ctx := ctx_bind_var child i idx in
+        comp b Gamma U B ctxComp (rcProchain ra) in
+      let nf := rcProchain rb in
+      if contientSomPar corps then
+        let nbGroupes := nomTemp nf in
+        let tailleGroupe := nomTemp (S nf) in
+        let couleur := nomTemp (S (S nf)) in
+        let rangEnfant := nomTemp (S (S (S nf))) in
+        let tailleEnfant := nomTemp (S (S (S (S nf)))) in
+        let groupeResp := nomTemp (S (S (S (S (S nf))))) in
+        let acc := nomTemp (S (S (S (S (S (S nf)))))) in
+        let ind := nomTemp (S (S (S (S (S (S (S nf))))))) in
+        let debutCorps := S (S (S (S (S (S (S (S nf))))))) in
+        let enfant :=
+          ctxEnfant ctxComp rangEnfant tailleEnfant couleur groupeResp in
+        let ctxCorps := lierVarCtx enfant i ind in
         let ru :=
-          compile body (gamma_bind_int Gamma i) U B
-            body_ctx body_start in
-        let result := temp_name (cr_next_fresh ru) in
-        {| cr_code :=
-             seq_list
-               [cr_code ra;
-                cr_code rb;
-                CAssign groups (ANbGroups (AVar (ctx_size cctx)));
-                CAssign group_size
-                  (AGroupSize (AVar (ctx_size cctx)) (AVar groups));
-                CAssign color
-                  (AColor (AVar (ctx_rank cctx))
-                    (AVar group_size) (AVar groups));
-                CAssign child_rank
-                  (AChildRank (AVar (ctx_rank cctx))
-                    (AVar color) (AVar group_size));
-                CAssign child_size
-                  (AChildSize (AVar (ctx_size cctx))
-                    (AVar color) (AVar group_size));
-                CAssign acc (zero_aexpr (cr_type ru));
-                CFor
-                  (CAssign idx (AVar (cr_result ra)))
-                  (ALe (AVar idx) (AVar (cr_result rb)))
-                  (CAssign idx (AAdd (AVar idx) (ANumInt 1)))
-                  (temp_names_between body_start (cr_next_fresh ru))
-                  (seq_list
-                    [CAssign owner
+          comp corps (lierTypeEnt Gamma i) U B
+            ctxCorps debutCorps in
+        let res := nomTemp (rcProchain ru) in
+        {| rcCode :=
+             seqCmds
+               [rcCode ra;
+                rcCode rb;
+                CAffect nbGroupes (ANbGroupes (AVar (ctxNbProc ctxComp)));
+                CAffect tailleGroupe
+                  (ATailleGroupe (AVar (ctxNbProc ctxComp)) (AVar nbGroupes));
+                CAffect couleur
+                  (ACouleur (AVar (ctxRang ctxComp))
+                    (AVar tailleGroupe) (AVar nbGroupes));
+                CAffect rangEnfant
+                  (ARangEnfant (AVar (ctxRang ctxComp))
+                    (AVar couleur) (AVar tailleGroupe));
+                CAffect tailleEnfant
+                  (ATailleEnfant (AVar (ctxNbProc ctxComp))
+                    (AVar couleur) (AVar tailleGroupe));
+                CAffect acc (exprNulle (rcType ru));
+                CPour
+                  (CAffect ind (AVar (rcRes ra)))
+                  (AInfEg (AVar ind) (AVar (rcRes rb)))
+                  (CAffect ind (APlus (AVar ind) (ACstEnt 1)))
+                  (nomsTempEntre debutCorps (rcProchain ru))
+                  (seqCmds
+                    [CAffect groupeResp
                        (AMod
-                         (AAdd
+                         (APlus
                            (AMod
-                             (ASub (AVar idx) (AVar (cr_result ra)))
-                             (AVar groups))
-                           (AVar groups))
-                         (AVar groups));
-                     cr_code ru;
-                     CIf
-                       (AAnd
-                         (AAnd (ctx_active cctx)
-                           (AEq (AVar color) (AVar owner)))
-                         (AEq (AVar child_rank) (ANumInt 0)))
+                             (AMoins (AVar ind) (AVar (rcRes ra)))
+                             (AVar nbGroupes))
+                           (AVar nbGroupes))
+                         (AVar nbGroupes));
+                     rcCode ru;
+                     CSi
+                       (AEt
+                         (AEt (ctxActif ctxComp)
+                           (AEg (AVar couleur) (AVar groupeResp)))
+                         (AEg (AVar rangEnfant) (ACstEnt 0)))
                        []
-                       (CAssign acc
-                         (AAdd (AVar acc) (AVar (cr_result ru))))
-                       [] CSkip]);
-                CAssign result (zero_aexpr (cr_type ru));
-                CAllreduce acc result];
-           cr_result := result;
-           cr_type := cr_type ru;
-           cr_next_fresh := S (cr_next_fresh ru) |}
+                       (CAffect acc
+                         (APlus (AVar acc) (AVar (rcRes ru))))
+                       [] CRien]);
+                CAffect res (exprNulle (rcType ru));
+                CRedTous acc res];
+           rcRes := res;
+           rcType := rcType ru;
+           rcProchain := S (rcProchain ru) |}
       else
-        let acc := temp_name nf in
-        let idx := temp_name (S nf) in
-        let body_start := S (S nf) in
-        let body_ctx := ctx_bind_var cctx i idx in
+        let acc := nomTemp nf in
+        let ind := nomTemp (S nf) in
+        let debutCorps := S (S nf) in
+        let ctxCorps := lierVarCtx ctxComp i ind in
         let ru :=
-          compile body (gamma_bind_int Gamma i) U B
-            body_ctx body_start in
-        let result := temp_name (cr_next_fresh ru) in
-        {| cr_code :=
-             seq_list
-               [cr_code ra;
-                cr_code rb;
-                CAssign acc (zero_aexpr (cr_type ru));
-                CIf (ctx_active cctx) []
-                  (CFor
-                    (CAssign idx
-                      (AAdd (AVar (cr_result ra))
-                        (AVar (ctx_rank cctx))))
-                    (ALe (AVar idx) (AVar (cr_result rb)))
-                    (CAssign idx
-                      (AAdd (AVar idx) (AVar (ctx_size cctx))))
-                    (temp_names_between body_start (cr_next_fresh ru))
-                    (seq_list
-                      [cr_code ru;
-                       CAssign acc
-                         (AAdd (AVar acc) (AVar (cr_result ru)))]))
-                  [] CSkip;
-                CAssign result (zero_aexpr (cr_type ru));
-                CAllreduce acc result];
-           cr_result := result;
-           cr_type := cr_type ru;
-           cr_next_fresh := S (cr_next_fresh ru) |}
+          comp corps (lierTypeEnt Gamma i) U B
+            ctxCorps debutCorps in
+        let res := nomTemp (rcProchain ru) in
+        {| rcCode :=
+             seqCmds
+               [rcCode ra;
+                rcCode rb;
+                CAffect acc (exprNulle (rcType ru));
+                CSi (ctxActif ctxComp) []
+                  (CPour
+                    (CAffect ind
+                      (APlus (AVar (rcRes ra))
+                        (AVar (ctxRang ctxComp))))
+                    (AInfEg (AVar ind) (AVar (rcRes rb)))
+                    (CAffect ind
+                      (APlus (AVar ind) (AVar (ctxNbProc ctxComp))))
+                    (nomsTempEntre debutCorps (rcProchain ru))
+                    (seqCmds
+                      [rcCode ru;
+                       CAffect acc
+                         (APlus (AVar acc) (AVar (rcRes ru)))]))
+                  [] CRien;
+                CAffect res (exprNulle (rcType ru));
+                CRedTous acc res];
+           rcRes := res;
+           rcType := rcType ru;
+           rcProchain := S (rcProchain ru) |}
   end.

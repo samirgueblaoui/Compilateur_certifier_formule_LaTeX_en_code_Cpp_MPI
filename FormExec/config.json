@@ -1,10 +1,4 @@
 {
-  "letters": [
-    "\\Alpha", "\\alpha", "\\Beta", "\\beta", "\\Gamma", "\\gamma",
-    "\\Delta", "\\delta", "\\Epsilon", "\\epsilon", "\\Theta", "\\theta",
-    "\\Lambda", "\\lambda", "\\Pi", "\\pi", "\\Sigma", "\\sigma",
-    "\\Phi", "\\phi", "\\Omega", "\\omega"
-  ],
   "compilers": {
     "ocaml": "ocamlopt unix.cmxa matrix.cmx skel.cmx",
     "c++": "g++ -std=c++23",
@@ -75,6 +69,15 @@
       }
     },
     {
+      "latex": "!",
+      "c++": "[](double x) { return std::tgamma(x + 1.0); }",
+      "type": {
+        "input": ["R"],
+        "output": "R",
+        "cost": {"c++": 10.0}
+      }
+    },
+    {
       "latex": "^",
       "c++": "std::pow",
       "type": {
@@ -87,6 +90,7 @@
   "environments": [
     {
       "section": 1,
+      "n": 20,
       "processors": [1]
     },
     {

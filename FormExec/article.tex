@@ -58,8 +58,11 @@ la multiplication implicite, la division flottante et les fonctions
 configurées.
 
 \begin{enumerate}
-  \item \formulaToSkel[label=arithPriority]{$$3+2\times5$$}
-        Attendu : $13$. Obtenu : \soloValue{arithPriority}.
+  \item \formulaToSkel[label=exemple]{$$\frac{1}{
+        \frac{2\times\sqrt{2}}{9801}\times
+        \sum_{i=0}^{n}\frac{(4i)!\times(1103+26390i)}
+        {(i!)^4\times(396.0^4)^i}}$$}
+        Attendu : $\approx \pi$. Obtenu : \soloValue{exemple}.
 
   \item \formulaToSkel[label=arithParentheses]{$$(3+5)\times2-4$$}
         Attendu : $12$. Obtenu : \soloValue{arithParentheses}.
@@ -145,7 +148,7 @@ d'exécution en microsecondes avec $p$ processus.
         \multiCaseTable{sumShiftedBounds}{3}{6}{20}{210}
 
   \item \formulaToSkel[label=sumTrig]{$$\sum_{i=0}^{n}\sin(i)$$}
-        \multiCaseTable{sumTrig}{3}{$\approx1.8918884197$}
+        \multiCaseTable{sumTrig}{3}{\soloValue{implicitVariables}}
                                    {20}{$\approx0.9982218844$}
 
   \item \formulaToSkel[label=sumDivision]{$$\sum_{i=0}^{n}\frac{i}{2}$$}

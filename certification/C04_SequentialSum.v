@@ -5,7 +5,7 @@ From Stdlib Require Import ZArith.ZArith.
 From Stdlib Require Import Reals.Reals.
 From Stdlib Require Import Relations.Relation_Operators.
 From Stdlib Require Import Lia.
-From Certification2 Require Export C03_Invariants.
+From certification Require Export C03_Invariants.
 
 Import ListNotations.
 Open Scope string_scope.
@@ -13,776 +13,583 @@ Open Scope Z_scope.
 Open Scope R_scope.
 
 (** Nom temporaire de l'accumulateur de somme. *)
-Definition sumseq_acc (nf : nat) : var :=
-  temp_name nf.
+Definition accSom (nf : nat) : var :=
+  nomTemp nf.
 
 (** Nom temporaire de l'indice de boucle. *)
-Definition sumseq_idx (nf : nat) : var :=
-  temp_name (S nf).
+Definition indSom (nf : nat) : var :=
+  nomTemp (S nf).
 
 (** Premier temporaire réservé au corps de somme. *)
-Definition sumseq_body_start (nf : nat) : nat :=
+Definition debutCorpsSom (nf : nat) : nat :=
   S (S nf).
 
 (** Compile le corps dans le contexte de l'indice. *)
-Definition sumseq_body_compile
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (i : var) (body : expr) (nf : nat) : compile_result :=
-  compile body (gamma_bind_int Gamma i) U B
-    (ctx_bind_var cctx i (sumseq_idx nf))
-    (sumseq_body_start nf).
+Definition compCorpsSom
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (i : var) (corps : expr) (nf : nat) : resComp :=
+  comp corps (lierTypeEnt Gamma i) U B
+    (lierVarCtx ctxComp i (indSom nf))
+    (debutCorpsSom nf).
 
 
 (** Temporaires nettoyés après une itération. *)
-Definition sumseq_cleanup
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (i : var) (body : expr) (nf : nat) : list var :=
-  temp_names_between (sumseq_body_start nf)
-    (cr_next_fresh
-      (sumseq_body_compile Gamma U B cctx i body nf)).
+Definition netSom
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (i : var) (corps : expr) (nf : nat) : list var :=
+  nomsTempEntre (debutCorpsSom nf)
+    (rcProchain
+      (compCorpsSom Gamma U B ctxComp i corps nf)).
 
 (** Test de poursuite de la boucle séquentielle. *)
-Definition sumseq_test (nf : nat) (bound : var) : aexpr :=
-  ALe (AVar (sumseq_idx nf)) (AVar bound).
+Definition testSom (nf : nat) (borne : var) : exprCible :=
+  AInfEg (AVar (indSom nf)) (AVar borne).
 
 (** Incrémentation de l'indice séquentiel. *)
-Definition sumseq_step (nf : nat) : cmd :=
-  CAssign (sumseq_idx nf)
-    (AAdd (AVar (sumseq_idx nf)) (ANumInt 1)).
+Definition incrSomSeq (nf : nat) : cmd :=
+  CAffect (indSom nf)
+    (APlus (AVar (indSom nf)) (ACstEnt 1)).
 
 (** Commande d'une itération de somme séquentielle. *)
-Definition sumseq_loop_body
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (i : var) (body : expr) (nf : nat) : cmd :=
+Definition corpsBoucleSom
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (i : var) (corps : expr) (nf : nat) : cmd :=
   CSeq
-    (cr_code (sumseq_body_compile Gamma U B cctx i body nf))
-    (CAssign (sumseq_acc nf)
-      (AAdd (AVar (sumseq_acc nf))
+    (rcCode (compCorpsSom Gamma U B ctxComp i corps nf))
+    (CAffect (accSom nf)
+      (APlus (AVar (accSom nf))
         (AVar
-          (cr_result
-            (sumseq_body_compile Gamma U B cctx i body nf))))).
+          (rcRes
+            (compCorpsSom Gamma U B ctxComp i corps nf))))).
 
 (** Boucle cible complète d'une somme séquentielle. *)
-Definition sumseq_loop
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (i : var) (body : expr) (nf : nat)
-  (bound : var) : cmd :=
-  CFor CSkip (sumseq_test nf bound) (sumseq_step nf)
-    (sumseq_cleanup Gamma U B cctx i body nf)
-    (sumseq_loop_body Gamma U B cctx i body nf).
+Definition boucleSomSeq
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (i : var) (corps : expr) (nf : nat)
+  (borne : var) : cmd :=
+  CPour CRien (testSom nf borne) (incrSomSeq nf)
+    (netSom Gamma U B ctxComp i corps nf)
+    (corpsBoucleSom Gamma U B ctxComp i corps nf).
 
 (** Incrémentation de l'indice par un pas donné. *)
-Definition sumstride_step (nf : nat) (stride_var : var) : cmd :=
-  CAssign (sumseq_idx nf)
-    (AAdd (AVar (sumseq_idx nf)) (AVar stride_var)).
+Definition incrSomPas (nf : nat) (varPas : var) : cmd :=
+  CAffect (indSom nf)
+    (APlus (AVar (indSom nf)) (AVar varPas)).
 
 (** Boucle cible d'une contribution par pas. *)
-Definition sumstride_loop
-  (Gamma : tyenv) (U : unary_sig_env) (B : binary_sig_env)
-  (cctx : ctx) (i : var) (body : expr) (nf : nat)
-  (bound stride_var : var) : cmd :=
-  CFor CSkip (sumseq_test nf bound) (sumstride_step nf stride_var)
-    (sumseq_cleanup Gamma U B cctx i body nf)
-    (sumseq_loop_body Gamma U B cctx i body nf).
+Definition boucleSomPas
+  (Gamma : envTypes) (U : envSigsUn) (B : envSigsBin)
+  (ctxComp : ctx) (i : var) (corps : expr) (nf : nat)
+  (borne varPas : var) : cmd :=
+  CPour CRien (testSom nf borne) (incrSomPas nf varPas)
+    (netSom Gamma U B ctxComp i corps nf)
+    (corpsBoucleSom Gamma U B ctxComp i corps nf).
 
 (** Une variable résultat définie n'est pas fraîche. *)
-Lemma matched_result_not_fresh :
-  forall sigma x v fresh n,
-    compiled_result_matches x v sigma ->
-    store_fresh sigma fresh ->
-    (fresh <= n)%nat ->
-    x <> temp_name n.
+Lemma resNonFrais :
+  forall sigma x v frais n,
+    resCorrespond x v sigma ->
+    memFraiche sigma frais ->
+    (frais <= n)%nat ->
+    x <> nomTemp n.
 Proof.
-  unfold compiled_result_matches, store_fresh.
-  intros sigma x v fresh n Hmatch Hfresh Hle Heq.
-  subst x. rewrite Hfresh in Hmatch; [discriminate | exact Hle].
+  unfold resCorrespond, memFraiche.
+  intros sigma x v frais n Hcorresp Hfrais Hle Heq.
+  subst x. rewrite Hfrais in Hcorresp; [discriminate | exact Hle].
 Qed.
 
 (** Une variable définie avant le seuil n'est pas fraîche. *)
-Lemma defined_var_not_fresh :
-  forall sigma x cv fresh n,
+Lemma varDefNonFraiche :
+  forall sigma x cv frais n,
     sigma x = Some cv ->
-    store_fresh sigma fresh ->
-    (fresh <= n)%nat ->
-    x <> temp_name n.
+    memFraiche sigma frais ->
+    (frais <= n)%nat ->
+    x <> nomTemp n.
 Proof.
-  unfold store_fresh. intros sigma x cv fresh n Hdefined Hfresh Hle Heq.
-  subst x. rewrite Hfresh in Hdefined; [discriminate | exact Hle].
+  unfold memFraiche. intros sigma x cv frais n Hdefini Hfrais Hle Heq.
+  subst x. rewrite Hfrais in Hdefini; [discriminate | exact Hle].
 Qed.
 
 (** Localise un temporaire antérieur au nettoyage. *)
-Lemma temp_before_cleanup :
-  forall n start stop,
-    (n < start)%nat ->
-    ~ In (temp_name n) (temp_names_between start stop).
+Lemma tempAvantNet :
+  forall n debut fin,
+    (n < debut)%nat ->
+    ~ In (nomTemp n) (nomsTempEntre debut fin).
 Proof.
-  intros n start stop Hlt Hin.
-  unfold temp_names_between in Hin.
-  apply in_temp_names_from in Hin. lia.
+  intros n debut fin Hlt Hin.
+  unfold nomsTempEntre in Hin.
+  apply dansTempDepuis in Hin. lia.
 Qed.
 
-(** Évalue positivement le test avant la borne. *)
-Lemma sumseq_test_true :
-  forall sigma nf bound m n,
-    sigma (sumseq_idx nf) = Some (CVInt m) ->
-    sigma bound = Some (CVInt n) ->
+(** Éval positivement le test avant la borne. *)
+Lemma testSomVrai :
+  forall sigma nf borne m n,
+    sigma (indSom nf) = Some (VCEnt m) ->
+    sigma borne = Some (VCEnt n) ->
     (m <= n)%Z ->
-    aeval sigma (sumseq_test nf bound) = Some (CVBool true).
+    evalCible sigma (testSom nf borne) = Some (VCBool true).
 Proof.
-  intros sigma nf bound m n Hidx Hbound Hle.
-  unfold sumseq_test. simpl. rewrite Hidx, Hbound. simpl.
+  intros sigma nf borne m n Hind Hborne Hle.
+  unfold testSom. simpl. rewrite Hind, Hborne. simpl.
   f_equal. f_equal. apply Z.leb_le. exact Hle.
 Qed.
 
-(** Évalue négativement le test après la borne. *)
-Lemma sumseq_test_false :
-  forall sigma nf bound m n,
-    sigma (sumseq_idx nf) = Some (CVInt m) ->
-    sigma bound = Some (CVInt n) ->
+(** Éval négativement le test après la borne. *)
+Lemma testSomFaux :
+  forall sigma nf borne m n,
+    sigma (indSom nf) = Some (VCEnt m) ->
+    sigma borne = Some (VCEnt n) ->
     (n < m)%Z ->
-    aeval sigma (sumseq_test nf bound) = Some (CVBool false).
+    evalCible sigma (testSom nf borne) = Some (VCBool false).
 Proof.
-  intros sigma nf bound m n Hidx Hbound Hlt.
-  unfold sumseq_test. simpl. rewrite Hidx, Hbound. simpl.
+  intros sigma nf borne m n Hind Hborne Hlt.
+  unfold testSom. simpl. rewrite Hind, Hborne. simpl.
   f_equal. f_equal. apply Z.leb_gt. lia.
 Qed.
 
 (** Justifie l'incrément unitaire de l'indice. *)
-Lemma sumseq_step_correct :
+Lemma corrIncrSeq :
   forall sigma nf m,
-    sigma (sumseq_idx nf) = Some (CVInt m) ->
-    aeval sigma
-      (AAdd (AVar (sumseq_idx nf)) (ANumInt 1)) =
-    Some (CVInt (m + 1)).
+    sigma (indSom nf) = Some (VCEnt m) ->
+    evalCible sigma
+      (APlus (AVar (indSom nf)) (ACstEnt 1)) =
+    Some (VCEnt (m + 1)).
 Proof.
-  intros sigma nf m Hidx. simpl. now rewrite Hidx.
+  intros sigma nf m Hind. simpl. now rewrite Hind.
 Qed.
 
 (** Justifie l'incrément de l'indice par un pas. *)
-Lemma sumstride_step_correct :
-  forall sigma nf stride_var current stride,
-    sigma (sumseq_idx nf) = Some (CVInt current) ->
-    sigma stride_var = Some (CVInt stride) ->
-    aeval sigma
-      (AAdd (AVar (sumseq_idx nf)) (AVar stride_var)) =
-    Some (CVInt (current + stride)).
+Lemma corrIncrPas :
+  forall sigma nf varPas courant pas,
+    sigma (indSom nf) = Some (VCEnt courant) ->
+    sigma varPas = Some (VCEnt pas) ->
+    evalCible sigma
+      (APlus (AVar (indSom nf)) (AVar varPas)) =
+    Some (VCEnt (courant + pas)).
 Proof.
-  intros sigma nf stride_var current stride Hidx Hstride.
-  simpl. now rewrite Hidx, Hstride.
+  intros sigma nf varPas courant pas Hind HpasSom.
+  simpl. now rewrite Hind, HpasSom.
 Qed.
 
 (** Justifie une accumulation et son nettoyage. *)
-Lemma sumseq_accumulate_correct :
-  forall sigma nf body_result prefix current,
-    sigma (sumseq_acc nf) =
-      Some (cvalue_of_value prefix) ->
-    sigma body_result =
-      Some (cvalue_of_value current) ->
-    aeval sigma
-      (AAdd (AVar (sumseq_acc nf)) (AVar body_result)) =
-    Some (cvalue_of_value (add_values prefix current)).
+Lemma corrAccumSom :
+  forall sigma nf resCorps prefixe courant,
+    sigma (accSom nf) =
+      Some (valVersCible prefixe) ->
+    sigma resCorps =
+      Some (valVersCible courant) ->
+    evalCible sigma
+      (APlus (AVar (accSom nf)) (AVar resCorps)) =
+    Some (valVersCible (additionVals prefixe courant)).
 Proof.
-  intros sigma nf body_result prefix current Hacc Hbody.
-  simpl. rewrite Hacc, Hbody. apply add_cvalues_correct.
+  intros sigma nf resCorps prefixe courant Hacc Hcorps.
+  simpl. rewrite Hacc, Hcorps. apply corrAdditionCible.
+Qed.
+
+(** Partie commune des boucles : corps, accumulation et nettoyage.
+    Toute case déjà définie, sauf l'accumulateur, conserve sa valeur.
+    Le pas d'incrémentation reste à la charge du lemme de boucle. *)
+Lemma corrIterNetSom :
+  forall Gamma U B ctxComp rho i corps tCorps,
+    (forall rho' sigma' ctxComp' frais' v,
+      evalExpr (lierTypeEnt Gamma i) U B rho' corps tCorps v ->
+      repEnv (ctxRepr ctxComp') rho' sigma' ->
+      memFraiche sigma' frais' ->
+      primCompat U B ->
+      simLoc (ctxRepr ctxComp') rho' sigma'
+        (comp corps (lierTypeEnt Gamma i) U B ctxComp' frais') v) ->
+    forall base sigma frais0 nf prefixe courant v k,
+      evalExpr (lierTypeEnt Gamma i) U B
+        (majEnv rho i (VEnt courant)) corps tCorps v ->
+      (frais0 <= nf)%nat ->
+      memFraiche base frais0 ->
+      repEnv (ctxRepr ctxComp) rho base ->
+      presMem base sigma ->
+      memFraiche sigma (debutCorpsSom nf) ->
+      sigma (accSom nf) = Some (valVersCible prefixe) ->
+      sigma (indSom nf) = Some (VCEnt courant) ->
+      primCompat U B ->
+      exists sigmaAcc sigmaNet,
+        execLoc sigma (corpsBoucleSom Gamma U B ctxComp i corps nf)
+          (KEff (netSom Gamma U B ctxComp i corps nf) :: k) sigmaAcc /\
+        suiteLoc
+          {| elMem := sigmaAcc;
+             elCont := KEff (netSom Gamma U B ctxComp i corps nf) :: k |}
+          {| elMem := sigmaNet; elCont := k |} /\
+        sigmaNet (accSom nf) =
+          Some (valVersCible (additionVals prefixe v)) /\
+        (forall x cv, sigma x = Some cv -> x <> accSom nf ->
+          sigmaNet x = Some cv) /\
+        memFraiche sigmaNet (debutCorpsSom nf) /\
+        presMem base sigmaNet.
+Proof.
+  intros Gamma U B ctxComp rho i corps tCorps HcorpsCorr
+    base sigma frais0 nf prefixe courant v k
+    HcorpsEval HfraisLe HbaseFrais HbaseRep HbasePres Hfrais Hacc Hind Hcompat.
+  set (ru := compCorpsSom Gamma U B ctxComp i corps nf).
+  set (net := netSom Gamma U B ctxComp i corps nf).
+  assert (HborneRep :
+    repEnv (ctxRepr (lierVarCtx ctxComp i (indSom nf)))
+      (majEnv rho i (VEnt courant)) sigma).
+  { apply repEnvLieEnt; [| exact Hind].
+    eapply repEnvPres; eauto. }
+  destruct (HcorpsCorr (majEnv rho i (VEnt courant)) sigma
+    (lierVarCtx ctxComp i (indSom nf)) (debutCorpsSom nf) v
+    HcorpsEval HborneRep Hfrais Hcompat
+    (KCmd (CAffect (accSom nf)
+      (APlus (AVar (accSom nf)) (AVar (rcRes ru)))) ::
+      KEff net :: k))
+    as [sigmaCorps [HexecCorps [HcorrespCorps [_ [HfraisCorps HpresCorps]]]]].
+  set (sigmaAcc := majMem sigmaCorps (accSom nf)
+    (valVersCible (additionVals prefixe v))).
+  set (sigmaNet := effMem sigmaAcc net).
+  assert (Hsuivant : (debutCorpsSom nf <= rcProchain ru)%nat).
+  { subst ru. unfold compCorpsSom. apply compFraisMono. }
+  assert (HfraisAcc : memFraiche sigmaAcc (rcProchain ru)).
+  { subst sigmaAcc. apply memFraicheMajAvant; [exact HfraisCorps |].
+    unfold accSom, debutCorpsSom in *. lia. }
+  assert (HbasePresAcc : presMem base sigmaAcc).
+  { subst sigmaAcc. apply presMemMajBase.
+    - eapply memFraicheMono; eauto.
+    - eapply presMemTrans; eauto. }
+  exists sigmaAcc, sigmaNet. repeat split.
+  - unfold corpsBoucleSom. fold ru. eapply execSeq.
+    + exact HexecCorps.
+    + apply execAffect.
+      apply corrAccumSom with (prefixe := prefixe) (courant := v).
+      * apply HpresCorps. exact Hacc.
+      * exact HcorrespCorps.
+  - apply execEff.
+  - subst sigmaNet sigmaAcc. rewrite effMemHors.
+    + apply majMemMeme.
+    + subst net. apply tempAvantNet.
+      unfold accSom, debutCorpsSom. lia.
+  - intros x cv Hx Hneq. subst sigmaNet sigmaAcc.
+    rewrite effMemHors.
+    + rewrite majMemAutre; [now apply HpresCorps | exact Hneq].
+    + intros Hin. subst net.
+      apply dansTempEntreExiste in Hin as [j [Hnom [Hdebut _]]];
+        [| exact Hsuivant].
+      rewrite Hnom, Hfrais in Hx; [discriminate | exact Hdebut].
+  - subst sigmaNet net. apply memFraicheApresNet; assumption.
+  - subst sigmaNet net. apply presMemEffTemps.
+    + exact Hsuivant.
+    + eapply memFraicheMono; [exact HbaseFrais |].
+      unfold debutCorpsSom. lia.
+    + exact HbasePresAcc.
 Qed.
 
 (** Prouve la correction de la boucle séquentielle. *)
-Lemma sumseq_loop_sound :
-  forall Gamma U B cctx rho i body tbody,
-    has_type (gamma_bind_int Gamma i) U B body tbody ->
-    (forall rho' sigma' cctx' fresh' v,
-      eval_expr (gamma_bind_int Gamma i) U B rho' body tbody v ->
-      store_represents (ctx_repr cctx') rho' sigma' ->
-      store_fresh sigma' fresh' ->
-      primitive_semantics_compatible U B ->
-      local_simulation (ctx_repr cctx') rho' sigma'
-        (compile body (gamma_bind_int Gamma i) U B
-          cctx' fresh') v) ->
+Lemma corrBoucleSeq :
+  forall Gamma U B ctxComp rho i corps tCorps,
+    bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+    (forall rho' sigma' ctxComp' frais' v,
+      evalExpr (lierTypeEnt Gamma i) U B rho' corps tCorps v ->
+      repEnv (ctxRepr ctxComp') rho' sigma' ->
+      memFraiche sigma' frais' ->
+      primCompat U B ->
+      simLoc (ctxRepr ctxComp') rho' sigma'
+        (comp corps (lierTypeEnt Gamma i) U B
+          ctxComp' frais') v) ->
     forall m n total,
-      eval_sum Gamma U B rho i m n body tbody total ->
-    forall base sigma fresh0 nf bound prefix k,
-      (fresh0 <= nf)%nat ->
-      store_fresh base fresh0 ->
-      store_represents (ctx_repr cctx) rho base ->
-      preserves_store base sigma ->
-      store_fresh sigma (sumseq_body_start nf) ->
-      sigma (sumseq_acc nf) =
-        Some (cvalue_of_value prefix) ->
-      sigma (sumseq_idx nf) = Some (CVInt m) ->
-      sigma bound = Some (CVInt n) ->
-      bound <> sumseq_acc nf ->
-      bound <> sumseq_idx nf ->
-      value_has_type prefix tbody ->
-      primitive_semantics_compatible U B ->
+      evalSom Gamma U B rho i m n corps tCorps total ->
+    forall base sigma frais0 nf borne prefixe k,
+      (frais0 <= nf)%nat ->
+      memFraiche base frais0 ->
+      repEnv (ctxRepr ctxComp) rho base ->
+      presMem base sigma ->
+      memFraiche sigma (debutCorpsSom nf) ->
+      sigma (accSom nf) =
+        Some (valVersCible prefixe) ->
+      sigma (indSom nf) = Some (VCEnt m) ->
+      sigma borne = Some (VCEnt n) ->
+      borne <> accSom nf ->
+      borne <> indSom nf ->
+      valTypee prefixe tCorps ->
+      primCompat U B ->
       exists sigma',
-        executes sigma
-          (sumseq_loop Gamma U B cctx i body nf bound) k sigma' /\
-        sigma' (sumseq_acc nf) =
-          Some (cvalue_of_value (add_values prefix total)) /\
-        sigma' bound = Some (CVInt n) /\
-        store_fresh sigma'
-          (cr_next_fresh
-            (sumseq_body_compile Gamma U B cctx i body nf)) /\
-        preserves_store base sigma'.
+        execLoc sigma
+          (boucleSomSeq Gamma U B ctxComp i corps nf borne) k sigma' /\
+        sigma' (accSom nf) =
+          Some (valVersCible (additionVals prefixe total)) /\
+        sigma' borne = Some (VCEnt n) /\
+        memFraiche sigma'
+          (rcProchain
+            (compCorpsSom Gamma U B ctxComp i corps nf)) /\
+        presMem base sigma'.
 Proof.
-  intros Gamma U B cctx rho i body tbody Hbodytype Hbody_sound
-    m n total Hsum.
-  induction Hsum as
-      [Gamma0 U0 B0 rho0 i0 m0 n0 body0 tbody0 Hempty
-      | Gamma0 U0 B0 rho0 i0 m0 n0 body0 tbody0 v1 vrest
-        Hle Hbodyeval Hrest IHrest];
-    intros base sigma fresh0 nf bound prefix k
-      Hfreshle Hbasefresh Hbaserep Hbasepres Hfresh
-      Hacc Hidx Hbound Hboundacc Hboundidx Hprefix Hcompat.
+  intros Gamma U B ctxComp rho i corps tCorps HcorpsType HcorpsCorr
+    m n total Hsom.
+  induction Hsom as
+      [Gamma0 U0 B0 rho0 i0 m0 n0 corps0 tCorps0 Hvide
+      | Gamma0 U0 B0 rho0 i0 m0 n0 corps0 tCorps0 v1 vReste
+        Hle HcorpsEval Hreste IHreste];
+    intros base sigma frais0 nf borne prefixe k
+      HfraisLe HbaseFrais HbaseRep HbasePres Hfrais
+      Hacc Hind Hborne HborneDiffAcc HborneDiffInd Hprefixe Hcompat.
   - exists sigma. repeat split.
-    + apply executes_for_false.
-      apply sumseq_test_false with (m := m0) (n := n0);
+    + apply execPourFin.
+      apply testSomFaux with (m := m0) (n := n0);
         assumption.
-    + rewrite add_values_zero_right.
+    + rewrite zeroDrtVals.
       * exact Hacc.
-      * exact Hprefix.
-    + exact Hbound.
-    + eapply store_fresh_monotone.
-      * exact Hfresh.
-      * unfold sumseq_body_start, sumseq_body_compile.
-        apply compile_fresh_monotone.
-    + exact Hbasepres.
-  - set (ru :=
-      sumseq_body_compile Gamma0 U0 B0 cctx i0 body0 nf).
-    set (cleanup :=
-      sumseq_cleanup Gamma0 U0 B0 cctx i0 body0 nf).
-    assert (Hcurrentrep :
-      store_represents (ctx_repr cctx) rho0 sigma).
-    { eapply store_represents_preserved; eauto. }
-    assert (Hboundrep :
-      store_represents
-        (ctx_repr (ctx_bind_var cctx i0 (sumseq_idx nf)))
-        (env_update rho0 i0 (VInt m0)) sigma).
-    { apply store_represents_bind_int; assumption. }
-    pose proof Hbody_sound as Hbody_current.
-    specialize
-      (Hbody_current
-        (env_update rho0 i0 (VInt m0)) sigma
-        (ctx_bind_var cctx i0 (sumseq_idx nf))
-        (sumseq_body_start nf) v1
-        Hbodyeval Hboundrep Hfresh Hcompat).
-    unfold local_simulation in Hbody_current.
-    specialize
-      (Hbody_current
+      * exact Hprefixe.
+    + exact Hborne.
+    + eapply memFraicheMono.
+      * exact Hfrais.
+      * unfold debutCorpsSom, compCorpsSom.
+        apply compFraisMono.
+    + exact HbasePres.
+  - destruct (corrIterNetSom
+      Gamma0 U0 B0 ctxComp rho0 i0 corps0 tCorps0 HcorpsCorr
+      base sigma frais0 nf prefixe m0 v1
+      (KCmd (incrSomSeq nf) ::
+       KCmd (boucleSomSeq Gamma0 U0 B0 ctxComp i0 corps0 nf borne) :: k)
+      HcorpsEval HfraisLe HbaseFrais HbaseRep HbasePres Hfrais Hacc Hind Hcompat)
+      as [sigmaAcc [sigmaNet
+        [HexecBoucleCorps [Heff [HaccNet [Hgarde [HfraisNet HbasePresNet]]]]]]].
+    assert (HaccDiffInd : accSom nf <> indSom nf).
+    { unfold accSom, indSom. intros Heq.
+      apply nomTempInj in Heq. lia. }
+    assert (HindNet : sigmaNet (indSom nf) = Some (VCEnt m0)).
+    { apply Hgarde; [exact Hind | now symmetry]. }
+    assert (HborneNet : sigmaNet borne = Some (VCEnt n0)).
+    { apply Hgarde; assumption. }
+    set (sigmaEtape :=
+      majMem sigmaNet (indSom nf) (VCEnt (m0 + 1))).
+    assert (HexecPas :
+      execLoc sigmaNet (incrSomSeq nf)
         (KCmd
-          (CAssign (sumseq_acc nf)
-            (AAdd (AVar (sumseq_acc nf))
-              (AVar (cr_result ru)))) ::
-         KDel cleanup :: KCmd (sumseq_step nf) ::
-         KCmd
-           (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k)).
-    destruct Hbody_current as
-      [sigma_body
-        [Hexec_body
-          [Hmatch_body
-            [Hrep_body
-              [Hfresh_body Hpres_body]]]]].
-    assert (Hacc_body :
-      sigma_body (sumseq_acc nf) =
-        Some (cvalue_of_value prefix)).
-    { eapply Hpres_body. exact Hacc. }
-    assert (Hidx_body :
-      sigma_body (sumseq_idx nf) = Some (CVInt m0)).
-    { eapply Hpres_body. exact Hidx. }
-    assert (Hbound_body :
-      sigma_body bound = Some (CVInt n0)).
-    { eapply Hpres_body. exact Hbound. }
-    set (sigma_acc :=
-      store_update sigma_body (sumseq_acc nf)
-        (cvalue_of_value (add_values prefix v1))).
-    assert (Hexec_acc :
-      executes sigma_body
-        (CAssign (sumseq_acc nf)
-          (AAdd (AVar (sumseq_acc nf))
-            (AVar (cr_result ru))))
-        (KDel cleanup :: KCmd (sumseq_step nf) ::
-         KCmd
-           (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k)
-        sigma_acc).
-    { apply executes_assign.
-      apply sumseq_accumulate_correct with
-        (prefix := prefix) (current := v1).
-      - exact Hacc_body.
-      - exact Hmatch_body. }
-    assert (Hexec_loop_body :
-      executes sigma
-        (sumseq_loop_body Gamma0 U0 B0 cctx i0 body0 nf)
-        (KDel cleanup :: KCmd (sumseq_step nf) ::
-         KCmd
-           (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k)
-        sigma_acc).
-    { unfold sumseq_loop_body. fold ru. eapply executes_seq.
-      - exact Hexec_body.
-      - exact Hexec_acc. }
-    assert (Hnext :
-      (sumseq_body_start nf <= cr_next_fresh ru)%nat).
-    { subst ru. unfold sumseq_body_compile.
-      apply compile_fresh_monotone. }
-    assert (Hacc_not_cleanup :
-      ~ In (sumseq_acc nf) cleanup).
-    { subst cleanup. apply temp_before_cleanup.
-      unfold sumseq_acc, sumseq_body_start. lia. }
-    assert (Hidx_not_cleanup :
-      ~ In (sumseq_idx nf) cleanup).
-    { subst cleanup. apply temp_before_cleanup.
-      unfold sumseq_idx, sumseq_body_start. lia. }
-    assert (Hbound_not_cleanup : ~ In bound cleanup).
-    { intros Hin.
-      subst cleanup.
-      apply in_temp_names_between_exists in Hin
-        as [j [Hboundname [Hstart _]]]; [| exact Hnext].
-      rewrite Hboundname in Hbound.
-      rewrite Hfresh in Hbound; [discriminate | exact Hstart]. }
-    assert (Haccidx : sumseq_acc nf <> sumseq_idx nf).
-    { unfold sumseq_acc, sumseq_idx. intros Heq.
-      apply temp_name_injective in Heq. lia. }
-    assert (Hfresh_acc_next :
-      store_fresh sigma_acc (cr_next_fresh ru)).
-    { subst sigma_acc.
-      apply store_fresh_update_below.
-      - exact Hfresh_body.
-      - unfold sumseq_acc, sumseq_body_start in *.
-        lia. }
-    set (sigma_clean := store_remove sigma_acc cleanup).
-    assert (Hdel :
-      local_steps
-        {| ls_store := sigma_acc;
-           ls_kont :=
-             KDel cleanup :: KCmd (sumseq_step nf) ::
-             KCmd
-               (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k |}
-        {| ls_store := sigma_clean;
-           ls_kont :=
-             KCmd (sumseq_step nf) ::
-             KCmd
-               (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k |}).
-    { subst sigma_clean. apply executes_del. }
-    assert (Hacc_clean :
-      sigma_clean (sumseq_acc nf) =
-        Some (cvalue_of_value (add_values prefix v1))).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hacc_not_cleanup].
-      apply store_update_same. }
-    assert (Hidx_clean :
-      sigma_clean (sumseq_idx nf) = Some (CVInt m0)).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hidx_not_cleanup].
-      rewrite store_update_other; [exact Hidx_body |].
-      now symmetry. }
-    assert (Hbound_clean :
-      sigma_clean bound = Some (CVInt n0)).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hbound_not_cleanup].
-      rewrite store_update_other; [exact Hbound_body |].
-      exact Hboundacc. }
-    assert (Hfresh_clean :
-      store_fresh sigma_clean (sumseq_body_start nf)).
-    { subst sigma_clean cleanup.
-      apply store_fresh_after_cleanup; assumption. }
-    assert (Hbasepres_acc : preserves_store base sigma_acc).
-    { subst sigma_acc.
-      apply preserves_store_update_from_base.
-      - eapply store_fresh_monotone; [exact Hbasefresh |].
-        exact Hfreshle.
-      - eapply preserves_store_trans; eauto. }
-    assert (Hbasepres_clean : preserves_store base sigma_clean).
-    { subst sigma_clean cleanup.
-      apply preserves_store_remove_fresh_range.
-      - exact Hnext.
-      - eapply store_fresh_monotone; [exact Hbasefresh |].
-        unfold sumseq_body_start. lia.
-      - exact Hbasepres_acc. }
-    set (sigma_step :=
-      store_update sigma_clean (sumseq_idx nf) (CVInt (m0 + 1))).
-    assert (Hexec_step :
-      executes sigma_clean (sumseq_step nf)
-        (KCmd
-          (sumseq_loop Gamma0 U0 B0 cctx i0 body0 nf bound) :: k)
-        sigma_step).
-    { unfold sumseq_step. apply executes_assign.
-      apply sumseq_step_correct. exact Hidx_clean. }
-    assert (Hfresh_step :
-      store_fresh sigma_step (sumseq_body_start nf)).
-    { subst sigma_step. apply store_fresh_update_below.
-      - exact Hfresh_clean.
-      - unfold sumseq_idx, sumseq_body_start. lia. }
-    assert (Hbasepres_step : preserves_store base sigma_step).
-    { subst sigma_step. apply preserves_store_update_from_base.
-      - eapply store_fresh_monotone; [exact Hbasefresh |].
+          (boucleSomSeq Gamma0 U0 B0 ctxComp i0 corps0 nf borne) :: k)
+        sigmaEtape).
+    { unfold incrSomSeq. apply execAffect.
+      apply corrIncrSeq. exact HindNet. }
+    assert (HfraisPas :
+      memFraiche sigmaEtape (debutCorpsSom nf)).
+    { subst sigmaEtape. apply memFraicheMajAvant.
+      - exact HfraisNet.
+      - unfold indSom, debutCorpsSom. lia. }
+    assert (HbasePresPas : presMem base sigmaEtape).
+    { subst sigmaEtape. apply presMemMajBase.
+      - eapply memFraicheMono; [exact HbaseFrais |].
         lia.
-      - exact Hbasepres_clean. }
-    assert (Hacc_step :
-      sigma_step (sumseq_acc nf) =
-        Some (cvalue_of_value (add_values prefix v1))).
-    { subst sigma_step. rewrite store_update_other.
-      - exact Hacc_clean.
-      - exact Haccidx. }
-    assert (Hidx_step :
-      sigma_step (sumseq_idx nf) = Some (CVInt (m0 + 1))).
-    { subst sigma_step. apply store_update_same. }
-    assert (Hbound_step :
-      sigma_step bound = Some (CVInt n0)).
-    { subst sigma_step. rewrite store_update_other.
-      - exact Hbound_clean.
-      - exact Hboundidx. }
-    assert (Hv1type : value_has_type v1 tbody0).
-    { eapply eval_expr_value_has_type. exact Hbodyeval. }
-    assert (Hvresttype : value_has_type vrest tbody0).
-    { eapply eval_sum_value_has_type. exact Hrest. }
+      - exact HbasePresNet. }
+    assert (HaccPas :
+      sigmaEtape (accSom nf) =
+        Some (valVersCible (additionVals prefixe v1))).
+    { subst sigmaEtape. rewrite majMemAutre.
+      - exact HaccNet.
+      - exact HaccDiffInd. }
+    assert (HindPas :
+      sigmaEtape (indSom nf) = Some (VCEnt (m0 + 1))).
+    { subst sigmaEtape. apply majMemMeme. }
+    assert (HbornePas :
+      sigmaEtape borne = Some (VCEnt n0)).
+    { subst sigmaEtape. rewrite majMemAutre.
+      - exact HborneNet.
+      - exact HborneDiffInd. }
+    assert (Hv1type : valTypee v1 tCorps0).
+    { eapply typeValEvalExpr. exact HcorpsEval. }
+    assert (HvResteType : valTypee vReste tCorps0).
+    { eapply typeValEvalSom. exact Hreste. }
     specialize
-      (IHrest Hbodytype Hbody_sound
-        base sigma_step fresh0 nf bound
-        (add_values prefix v1) k
-        Hfreshle Hbasefresh Hbaserep Hbasepres_step Hfresh_step
-        Hacc_step Hidx_step Hbound_step
-        Hboundacc Hboundidx
-        (add_values_has_type tbody0 prefix v1 Hprefix Hv1type)
+      (IHreste HcorpsType HcorpsCorr
+        base sigmaEtape frais0 nf borne
+        (additionVals prefixe v1) k
+        HfraisLe HbaseFrais HbaseRep HbasePresPas HfraisPas
+        HaccPas HindPas HbornePas
+        HborneDiffAcc HborneDiffInd
+        (typeAdditionVals tCorps0 prefixe v1 Hprefixe Hv1type)
         Hcompat).
-    destruct IHrest as
-      [sigma_final
-        [Hexec_rest
-          [Hacc_final
-            [Hbound_final [Hfresh_final Hbasepres_final]]]]].
-    exists sigma_final. repeat split.
-    + unfold sumseq_loop.
-      eapply executes_for_iteration
-        with (sigma1 := sigma_acc)
-             (sigma2 := sigma_clean)
-             (sigma3 := sigma_step).
-      * apply sumseq_test_true with (m := m0) (n := n0);
+    destruct IHreste as
+      [sigmaFinal
+        [HexecReste
+          [HaccFinal
+            [HborneFinal [HfraisFinal HbasePresFinal]]]]].
+    exists sigmaFinal. repeat split.
+    + unfold boucleSomSeq.
+      eapply execPourIter
+        with (sigma1 := sigmaAcc)
+             (sigma2 := sigmaNet)
+             (sigma3 := sigmaEtape).
+      * apply testSomVrai with (m := m0) (n := n0);
           assumption.
-      * exact Hexec_loop_body.
-      * exact Hdel.
-      * exact Hexec_step.
-      * exact Hexec_rest.
-    + rewrite <- (add_values_assoc tbody0 prefix v1 vrest);
+      * exact HexecBoucleCorps.
+      * exact Heff.
+      * exact HexecPas.
+      * exact HexecReste.
+    + rewrite <- (assocAdditionVals tCorps0 prefixe v1 vReste);
         try assumption.
-    + exact Hbound_final.
-    + exact Hfresh_final.
-    + exact Hbasepres_final.
+    + exact HborneFinal.
+    + exact HfraisFinal.
+    + exact HbasePresFinal.
 Qed.
 
 (** Prouve la correction d'une boucle par pas. *)
-Lemma sumstride_loop_sound :
-  forall Gamma U B cctx rho i body tbody,
-    has_type (gamma_bind_int Gamma i) U B body tbody ->
-    (forall rho' sigma' cctx' fresh' v,
-      eval_expr (gamma_bind_int Gamma i) U B rho' body tbody v ->
-      store_represents (ctx_repr cctx') rho' sigma' ->
-      store_fresh sigma' fresh' ->
-      primitive_semantics_compatible U B ->
-      local_simulation (ctx_repr cctx') rho' sigma'
-        (compile body (gamma_bind_int Gamma i) U B
-          cctx' fresh') v) ->
-    forall stride m n total,
-      eval_stride_sum Gamma U B rho i body tbody stride
+Lemma corrBouclePas :
+  forall Gamma U B ctxComp rho i corps tCorps,
+    bienType (lierTypeEnt Gamma i) U B corps tCorps ->
+    (forall rho' sigma' ctxComp' frais' v,
+      evalExpr (lierTypeEnt Gamma i) U B rho' corps tCorps v ->
+      repEnv (ctxRepr ctxComp') rho' sigma' ->
+      memFraiche sigma' frais' ->
+      primCompat U B ->
+      simLoc (ctxRepr ctxComp') rho' sigma'
+        (comp corps (lierTypeEnt Gamma i) U B
+          ctxComp' frais') v) ->
+    forall pas m n total,
+      evalSomPas Gamma U B rho i corps tCorps pas
         m n total ->
-    forall base sigma fresh0 nf bound stride_var prefix k,
-      (fresh0 <= nf)%nat ->
-      store_fresh base fresh0 ->
-      store_represents (ctx_repr cctx) rho base ->
-      preserves_store base sigma ->
-      store_fresh sigma (sumseq_body_start nf) ->
-      sigma (sumseq_acc nf) =
-        Some (cvalue_of_value prefix) ->
-      sigma (sumseq_idx nf) = Some (CVInt m) ->
-      sigma bound = Some (CVInt n) ->
-      sigma stride_var = Some (CVInt stride) ->
-      bound <> sumseq_acc nf ->
-      bound <> sumseq_idx nf ->
-      stride_var <> sumseq_acc nf ->
-      stride_var <> sumseq_idx nf ->
-      value_has_type prefix tbody ->
-      primitive_semantics_compatible U B ->
+    forall base sigma frais0 nf borne varPas prefixe k,
+      (frais0 <= nf)%nat ->
+      memFraiche base frais0 ->
+      repEnv (ctxRepr ctxComp) rho base ->
+      presMem base sigma ->
+      memFraiche sigma (debutCorpsSom nf) ->
+      sigma (accSom nf) =
+        Some (valVersCible prefixe) ->
+      sigma (indSom nf) = Some (VCEnt m) ->
+      sigma borne = Some (VCEnt n) ->
+      sigma varPas = Some (VCEnt pas) ->
+      borne <> accSom nf ->
+      borne <> indSom nf ->
+      varPas <> accSom nf ->
+      varPas <> indSom nf ->
+      valTypee prefixe tCorps ->
+      primCompat U B ->
       exists sigma',
-        executes sigma
-          (sumstride_loop Gamma U B cctx i body nf
-            bound stride_var) k sigma' /\
-        sigma' (sumseq_acc nf) =
-          Some (cvalue_of_value (add_values prefix total)) /\
-        sigma' bound = Some (CVInt n) /\
-        sigma' stride_var = Some (CVInt stride) /\
-        store_fresh sigma'
-          (cr_next_fresh
-            (sumseq_body_compile Gamma U B cctx i body nf)) /\
-        preserves_store base sigma'.
+        execLoc sigma
+          (boucleSomPas Gamma U B ctxComp i corps nf
+            borne varPas) k sigma' /\
+        sigma' (accSom nf) =
+          Some (valVersCible (additionVals prefixe total)) /\
+        sigma' borne = Some (VCEnt n) /\
+        sigma' varPas = Some (VCEnt pas) /\
+        memFraiche sigma'
+          (rcProchain
+            (compCorpsSom Gamma U B ctxComp i corps nf)) /\
+        presMem base sigma'.
 Proof.
-  intros Gamma U B cctx rho i body tbody Hbodytype Hbody_sound
-    stride m n total Hsum.
-  induction Hsum as
-      [current upper Hempty
-      | current upper current_value rest
-        Hle Hbodyeval Hrest IHrest];
-    intros base sigma fresh0 nf bound stride_var prefix k
-      Hfreshle Hbasefresh Hbaserep Hbasepres Hfresh
-      Hacc Hidx Hbound Hstride
-      Hboundacc Hboundidx Hstrideacc Hstrideidx
-      Hprefix Hcompat.
+  intros Gamma U B ctxComp rho i corps tCorps HcorpsType HcorpsCorr
+    pas m n total Hsom.
+  induction Hsom as
+      [courant bSup Hvide
+      | courant bSup valCourante reste
+        Hle HcorpsEval Hreste IHreste];
+    intros base sigma frais0 nf borne varPas prefixe k
+      HfraisLe HbaseFrais HbaseRep HbasePres Hfrais
+      Hacc Hind Hborne HpasSom
+      HborneDiffAcc HborneDiffInd HpasSomAcc HpasSomInd
+      Hprefixe Hcompat.
   - exists sigma. repeat split.
-    + apply executes_for_false.
-      apply sumseq_test_false with (m := current) (n := upper);
+    + apply execPourFin.
+      apply testSomFaux with (m := courant) (n := bSup);
         assumption.
-    + rewrite add_values_zero_right; assumption.
-    + exact Hbound.
-    + exact Hstride.
-    + eapply store_fresh_monotone.
-      * exact Hfresh.
-      * unfold sumseq_body_start, sumseq_body_compile.
-        apply compile_fresh_monotone.
-    + exact Hbasepres.
-  - set (ru :=
-      sumseq_body_compile Gamma U B cctx i body nf).
-    set (cleanup :=
-      sumseq_cleanup Gamma U B cctx i body nf).
-    assert (Hcurrentrep :
-      store_represents (ctx_repr cctx) rho sigma).
-    { eapply store_represents_preserved; eauto. }
-    assert (Hboundrep :
-      store_represents
-        (ctx_repr (ctx_bind_var cctx i (sumseq_idx nf)))
-        (env_update rho i (VInt current)) sigma).
-    { apply store_represents_bind_int; assumption. }
-    pose proof Hbody_sound as Hbody_current.
-    specialize
-      (Hbody_current
-        (env_update rho i (VInt current)) sigma
-        (ctx_bind_var cctx i (sumseq_idx nf))
-        (sumseq_body_start nf) current_value
-        Hbodyeval Hboundrep Hfresh Hcompat).
-    unfold local_simulation in Hbody_current.
-    specialize
-      (Hbody_current
+    + rewrite zeroDrtVals; assumption.
+    + exact Hborne.
+    + exact HpasSom.
+    + eapply memFraicheMono.
+      * exact Hfrais.
+      * unfold debutCorpsSom, compCorpsSom.
+        apply compFraisMono.
+    + exact HbasePres.
+  - destruct (corrIterNetSom
+      Gamma U B ctxComp rho i corps tCorps HcorpsCorr
+      base sigma frais0 nf prefixe courant valCourante
+      (KCmd (incrSomPas nf varPas) ::
+       KCmd (boucleSomPas Gamma U B ctxComp i corps nf borne varPas) :: k)
+      HcorpsEval HfraisLe HbaseFrais HbaseRep HbasePres Hfrais Hacc Hind Hcompat)
+      as [sigmaAcc [sigmaNet
+        [HexecBoucleCorps [Heff [HaccNet [Hgarde [HfraisNet HbasePresNet]]]]]]].
+    assert (HaccDiffInd : accSom nf <> indSom nf).
+    { unfold accSom, indSom. intros Heq.
+      apply nomTempInj in Heq. lia. }
+    assert (HindNet : sigmaNet (indSom nf) = Some (VCEnt courant)).
+    { apply Hgarde; [exact Hind | now symmetry]. }
+    assert (HborneNet : sigmaNet borne = Some (VCEnt bSup)).
+    { apply Hgarde; assumption. }
+    assert (HpasSomNet : sigmaNet varPas = Some (VCEnt pas)).
+    { apply Hgarde; assumption. }
+    set (sigmaEtape :=
+      majMem sigmaNet (indSom nf)
+        (VCEnt (courant + pas))).
+    assert (HexecPas :
+      execLoc sigmaNet (incrSomPas nf varPas)
         (KCmd
-          (CAssign (sumseq_acc nf)
-            (AAdd (AVar (sumseq_acc nf))
-              (AVar (cr_result ru)))) ::
-         KDel cleanup :: KCmd (sumstride_step nf stride_var) ::
-         KCmd
-           (sumstride_loop Gamma U B cctx i body nf
-             bound stride_var) :: k)).
-    destruct Hbody_current as
-      [sigma_body
-        [Hexec_body
-          [Hmatch_body
-            [Hrep_body
-              [Hfresh_body Hpres_body]]]]].
-    assert (Hacc_body :
-      sigma_body (sumseq_acc nf) =
-        Some (cvalue_of_value prefix)).
-    { eapply Hpres_body. exact Hacc. }
-    assert (Hidx_body :
-      sigma_body (sumseq_idx nf) = Some (CVInt current)).
-    { eapply Hpres_body. exact Hidx. }
-    assert (Hbound_body :
-      sigma_body bound = Some (CVInt upper)).
-    { eapply Hpres_body. exact Hbound. }
-    assert (Hstride_body :
-      sigma_body stride_var = Some (CVInt stride)).
-    { eapply Hpres_body. exact Hstride. }
-    set (sigma_acc :=
-      store_update sigma_body (sumseq_acc nf)
-        (cvalue_of_value (add_values prefix current_value))).
-    assert (Hexec_acc :
-      executes sigma_body
-        (CAssign (sumseq_acc nf)
-          (AAdd (AVar (sumseq_acc nf))
-            (AVar (cr_result ru))))
-        (KDel cleanup :: KCmd (sumstride_step nf stride_var) ::
-         KCmd
-           (sumstride_loop Gamma U B cctx i body nf
-             bound stride_var) :: k)
-        sigma_acc).
-    { apply executes_assign.
-      apply sumseq_accumulate_correct with
-        (prefix := prefix) (current := current_value).
-      - exact Hacc_body.
-      - exact Hmatch_body. }
-    assert (Hexec_loop_body :
-      executes sigma
-        (sumseq_loop_body Gamma U B cctx i body nf)
-        (KDel cleanup :: KCmd (sumstride_step nf stride_var) ::
-         KCmd
-           (sumstride_loop Gamma U B cctx i body nf
-             bound stride_var) :: k)
-        sigma_acc).
-    { unfold sumseq_loop_body. fold ru. eapply executes_seq.
-      - exact Hexec_body.
-      - exact Hexec_acc. }
-    assert (Hnext :
-      (sumseq_body_start nf <= cr_next_fresh ru)%nat).
-    { subst ru. unfold sumseq_body_compile.
-      apply compile_fresh_monotone. }
-    assert (Hacc_not_cleanup :
-      ~ In (sumseq_acc nf) cleanup).
-    { subst cleanup. apply temp_before_cleanup.
-      unfold sumseq_acc, sumseq_body_start. lia. }
-    assert (Hidx_not_cleanup :
-      ~ In (sumseq_idx nf) cleanup).
-    { subst cleanup. apply temp_before_cleanup.
-      unfold sumseq_idx, sumseq_body_start. lia. }
-    assert (Hbound_not_cleanup : ~ In bound cleanup).
-    { intros Hin. subst cleanup.
-      apply in_temp_names_between_exists in Hin
-        as [j [Hname [Hstart _]]]; [| exact Hnext].
-      rewrite Hname in Hbound.
-      rewrite Hfresh in Hbound; [discriminate | exact Hstart]. }
-    assert (Hstride_not_cleanup : ~ In stride_var cleanup).
-    { intros Hin. subst cleanup.
-      apply in_temp_names_between_exists in Hin
-        as [j [Hname [Hstart _]]]; [| exact Hnext].
-      rewrite Hname in Hstride.
-      rewrite Hfresh in Hstride; [discriminate | exact Hstart]. }
-    assert (Haccidx : sumseq_acc nf <> sumseq_idx nf).
-    { unfold sumseq_acc, sumseq_idx. intros Heq.
-      apply temp_name_injective in Heq. lia. }
-    assert (Hfresh_acc_next :
-      store_fresh sigma_acc (cr_next_fresh ru)).
-    { subst sigma_acc.
-      apply store_fresh_update_below.
-      - exact Hfresh_body.
-      - unfold sumseq_acc, sumseq_body_start in *; lia. }
-    set (sigma_clean := store_remove sigma_acc cleanup).
-    assert (Hdel :
-      local_steps
-        {| ls_store := sigma_acc;
-           ls_kont :=
-             KDel cleanup :: KCmd (sumstride_step nf stride_var) ::
-             KCmd
-               (sumstride_loop Gamma U B cctx i body nf
-                 bound stride_var) :: k |}
-        {| ls_store := sigma_clean;
-           ls_kont :=
-             KCmd (sumstride_step nf stride_var) ::
-             KCmd
-               (sumstride_loop Gamma U B cctx i body nf
-                 bound stride_var) :: k |}).
-    { subst sigma_clean. apply executes_del. }
-    assert (Hacc_clean :
-      sigma_clean (sumseq_acc nf) =
-        Some (cvalue_of_value (add_values prefix current_value))).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hacc_not_cleanup].
-      apply store_update_same. }
-    assert (Hidx_clean :
-      sigma_clean (sumseq_idx nf) = Some (CVInt current)).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hidx_not_cleanup].
-      rewrite store_update_other; [exact Hidx_body |].
-      now symmetry. }
-    assert (Hbound_clean :
-      sigma_clean bound = Some (CVInt upper)).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hbound_not_cleanup].
-      rewrite store_update_other; [exact Hbound_body |].
-      exact Hboundacc. }
-    assert (Hstride_clean :
-      sigma_clean stride_var = Some (CVInt stride)).
-    { subst sigma_clean sigma_acc.
-      rewrite store_remove_not_in; [| exact Hstride_not_cleanup].
-      rewrite store_update_other; [exact Hstride_body |].
-      exact Hstrideacc. }
-    assert (Hfresh_clean :
-      store_fresh sigma_clean (sumseq_body_start nf)).
-    { subst sigma_clean cleanup.
-      apply store_fresh_after_cleanup; assumption. }
-    assert (Hbasepres_acc : preserves_store base sigma_acc).
-    { subst sigma_acc.
-      apply preserves_store_update_from_base.
-      - eapply store_fresh_monotone; [exact Hbasefresh |].
-        exact Hfreshle.
-      - eapply preserves_store_trans; eauto. }
-    assert (Hbasepres_clean : preserves_store base sigma_clean).
-    { subst sigma_clean cleanup.
-      apply preserves_store_remove_fresh_range.
-      - exact Hnext.
-      - eapply store_fresh_monotone; [exact Hbasefresh |].
-        unfold sumseq_body_start. lia.
-      - exact Hbasepres_acc. }
-    set (sigma_step :=
-      store_update sigma_clean (sumseq_idx nf)
-        (CVInt (current + stride))).
-    assert (Hexec_step :
-      executes sigma_clean (sumstride_step nf stride_var)
-        (KCmd
-          (sumstride_loop Gamma U B cctx i body nf
-            bound stride_var) :: k)
-        sigma_step).
-    { unfold sumstride_step. apply executes_assign.
-      apply sumstride_step_correct; assumption. }
-    assert (Hfresh_step :
-      store_fresh sigma_step (sumseq_body_start nf)).
-    { subst sigma_step. apply store_fresh_update_below.
-      - exact Hfresh_clean.
-      - unfold sumseq_idx, sumseq_body_start. lia. }
-    assert (Hbasepres_step : preserves_store base sigma_step).
-    { subst sigma_step. apply preserves_store_update_from_base.
-      - eapply store_fresh_monotone; [exact Hbasefresh | lia].
-      - exact Hbasepres_clean. }
-    assert (Hacc_step :
-      sigma_step (sumseq_acc nf) =
-        Some (cvalue_of_value (add_values prefix current_value))).
-    { subst sigma_step. rewrite store_update_other.
-      - exact Hacc_clean.
-      - exact Haccidx. }
-    assert (Hidx_step :
-      sigma_step (sumseq_idx nf) =
-        Some (CVInt (current + stride))).
-    { subst sigma_step. apply store_update_same. }
-    assert (Hbound_step :
-      sigma_step bound = Some (CVInt upper)).
-    { subst sigma_step. rewrite store_update_other.
-      - exact Hbound_clean.
-      - exact Hboundidx. }
-    assert (Hstride_step :
-      sigma_step stride_var = Some (CVInt stride)).
-    { subst sigma_step. rewrite store_update_other.
-      - exact Hstride_clean.
-      - exact Hstrideidx. }
-    assert (Hcurrent_type : value_has_type current_value tbody).
+          (boucleSomPas Gamma U B ctxComp i corps nf
+            borne varPas) :: k)
+        sigmaEtape).
+    { unfold incrSomPas. apply execAffect.
+      apply corrIncrPas; assumption. }
+    assert (HfraisPas :
+      memFraiche sigmaEtape (debutCorpsSom nf)).
+    { subst sigmaEtape. apply memFraicheMajAvant.
+      - exact HfraisNet.
+      - unfold indSom, debutCorpsSom. lia. }
+    assert (HbasePresPas : presMem base sigmaEtape).
+    { subst sigmaEtape. apply presMemMajBase.
+      - eapply memFraicheMono; [exact HbaseFrais | lia].
+      - exact HbasePresNet. }
+    assert (HaccPas :
+      sigmaEtape (accSom nf) =
+        Some (valVersCible (additionVals prefixe valCourante))).
+    { subst sigmaEtape. rewrite majMemAutre.
+      - exact HaccNet.
+      - exact HaccDiffInd. }
+    assert (HindPas :
+      sigmaEtape (indSom nf) =
+        Some (VCEnt (courant + pas))).
+    { subst sigmaEtape. apply majMemMeme. }
+    assert (HbornePas :
+      sigmaEtape borne = Some (VCEnt bSup)).
+    { subst sigmaEtape. rewrite majMemAutre.
+      - exact HborneNet.
+      - exact HborneDiffInd. }
+    assert (HpasSomPas :
+      sigmaEtape varPas = Some (VCEnt pas)).
+    { subst sigmaEtape. rewrite majMemAutre.
+      - exact HpasSomNet.
+      - exact HpasSomInd. }
+    assert (HcourantType : valTypee valCourante tCorps).
     { exact
-        (eval_expr_value_has_type _ _ _ _ _ _ _ Hbodyeval). }
-    assert (Hrest_type : value_has_type rest tbody).
+        (typeValEvalExpr _ _ _ _ _ _ _ HcorpsEval). }
+    assert (HresteType : valTypee reste tCorps).
     { exact
-        (eval_stride_sum_value_has_type
-          _ _ _ _ _ _ _ _ _ _ _ Hrest). }
+        (typeValEvalSomPas
+          _ _ _ _ _ _ _ _ _ _ _ Hreste). }
     specialize
-      (IHrest base sigma_step fresh0 nf bound stride_var
-        (add_values prefix current_value) k
-        Hfreshle Hbasefresh Hbaserep Hbasepres_step Hfresh_step
-        Hacc_step Hidx_step Hbound_step Hstride_step
-        Hboundacc Hboundidx Hstrideacc Hstrideidx
-        (add_values_has_type tbody prefix current_value
-          Hprefix Hcurrent_type)
+      (IHreste base sigmaEtape frais0 nf borne varPas
+        (additionVals prefixe valCourante) k
+        HfraisLe HbaseFrais HbaseRep HbasePresPas HfraisPas
+        HaccPas HindPas HbornePas HpasSomPas
+        HborneDiffAcc HborneDiffInd HpasSomAcc HpasSomInd
+        (typeAdditionVals tCorps prefixe valCourante
+          Hprefixe HcourantType)
         Hcompat).
-    destruct IHrest as
-      [sigma_final
-        [Hexec_rest
-          [Hacc_final
-            [Hbound_final
-              [Hstride_final
-                [Hfresh_final Hbasepres_final]]]]]].
-    exists sigma_final. repeat split.
-    + unfold sumstride_loop.
-      eapply executes_for_iteration
-        with (sigma1 := sigma_acc)
-             (sigma2 := sigma_clean)
-             (sigma3 := sigma_step).
-      * apply sumseq_test_true with
-          (m := current) (n := upper); assumption.
-      * exact Hexec_loop_body.
-      * exact Hdel.
-      * exact Hexec_step.
-      * exact Hexec_rest.
+    destruct IHreste as
+      [sigmaFinal
+        [HexecReste
+          [HaccFinal
+            [HborneFinal
+              [HpasSomFinal
+                [HfraisFinal HbasePresFinal]]]]]].
+    exists sigmaFinal. repeat split.
+    + unfold boucleSomPas.
+      eapply execPourIter
+        with (sigma1 := sigmaAcc)
+             (sigma2 := sigmaNet)
+             (sigma3 := sigmaEtape).
+      * apply testSomVrai with
+          (m := courant) (n := bSup); assumption.
+      * exact HexecBoucleCorps.
+      * exact Heff.
+      * exact HexecPas.
+      * exact HexecReste.
     + rewrite <-
-        (add_values_assoc tbody prefix current_value rest);
+        (assocAdditionVals tCorps prefixe valCourante reste);
         try assumption.
-    + exact Hbound_final.
-    + exact Hstride_final.
-    + exact Hfresh_final.
-    + exact Hbasepres_final.
+    + exact HborneFinal.
+    + exact HpasSomFinal.
+    + exact HfraisFinal.
+    + exact HbasePresFinal.
 Qed.
